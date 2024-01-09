@@ -7,20 +7,21 @@
 '''
 import socket
 import time
-from threading import Thread
 from queue import Queue
+from threading import Thread
+
 
 def log(x):
     from datetime import datetime
     time_now = datetime.now().strftime("%m-%d-%H:%M:%S.%f ")
     print(time_now + x)
 
+
 class BaseSocket:
     def __init__(self, host, port, debug=False) -> None:
         # 创建 socket 对象
         print('[Info] server start')
-        serversocket = socket.socket(
-                    socket.AF_INET, socket.SOCK_STREAM)
+        serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         serversocket.bind((host, port))
         serversocket.listen(1)
         self.serversocket = serversocket
@@ -29,7 +30,7 @@ class BaseSocket:
         self.t.start()
         self.debug = debug
         self.disconnect = False
-    
+
     @staticmethod
     def recvLine(sock):
         flag = True
@@ -63,17 +64,18 @@ class BaseSocket:
                     self.disconnect = True
                     break
                 data = self.recvAll(clientsocket, l)
-                if self.debug:log('[Info] Recv data')
+                if self.debug:
+                    log('[Info] Recv data')
                 self.queue.put(data)
             clientsocket.close()
-    
+
     def update(self):
         time.sleep(1)
         while not self.queue.empty():
             log('update')
             data = self.queue.get()
             self.main(data)
-    
+
     def main(self, datas):
         print(datas)
 

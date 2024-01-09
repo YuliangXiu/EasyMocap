@@ -1,14 +1,16 @@
 import os
+from os.path import join
+
 import torch
 import torch.nn as nn
+
+from easymocap.multistage.torchgeometry import rotation_matrix_to_axis_angle
+
+from .backbone.utils import get_backbone_info
 from .config import update_hparams
 # from .head import PareHead, SMPLHead, SMPLCamHead
 from .head import PareHead
-from .backbone.utils import get_backbone_info
-from .backbone.hrnet import hrnet_w32
-from os.path import join
-from easymocap.multistage.torchgeometry import rotation_matrix_to_axis_angle
-import cv2
+
 
 def try_to_download():
     model_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'models', 'pare')
@@ -156,7 +158,7 @@ class PARE(nn.Module):
         }
 
 from ..basetopdown import BaseTopDownModelCache
-import pickle
+
 
 class NullSPIN:
     def __init__(self, ckpt) -> None:

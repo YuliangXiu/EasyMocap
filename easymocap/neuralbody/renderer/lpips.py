@@ -1,7 +1,8 @@
-import numpy as np
 import cv2
+import numpy as np
 import torch
 import torchvision
+
 
 class VGGPerceptualLoss(torch.nn.Module):
     def __init__(self, resize=False):
@@ -24,8 +25,8 @@ class VGGPerceptualLoss(torch.nn.Module):
         if input.shape[1] != 3:
             input = input.repeat(1, 3, 1, 1)
             target = target.repeat(1, 3, 1, 1)
-        input = (input-self.mean) / self.std
-        target = (target-self.mean) / self.std
+        input = (input - self.mean) / self.std
+        target = (target - self.mean) / self.std
         if self.resize:
             input = self.transform(input, mode='bilinear', size=(224, 224), align_corners=False)
             target = self.transform(target, mode='bilinear', size=(224, 224), align_corners=False)
@@ -45,6 +46,7 @@ class VGGPerceptualLoss(torch.nn.Module):
                 loss += torch.nn.functional.l1_loss(gram_x, gram_y)
         return loss
 
+
 class LossLPIPS(VGGPerceptualLoss):
     def forward(self, inp, out):
         W, H = 32, 32
@@ -56,7 +58,7 @@ class LossLPIPS(VGGPerceptualLoss):
                 target_ = target[i].detach().cpu().numpy()
                 inputs_ = inputs[i].detach().cpu().numpy()
                 vis = np.hstack([target_, inputs_])
-                vis = (vis*255).astype(np.uint8)
+                vis = (vis * 255).astype(np.uint8)
                 vis_all.append(vis)
             vis_all = np.vstack(vis_all)
             vis_all = vis_all[..., ::-1]
@@ -64,6 +66,7 @@ class LossLPIPS(VGGPerceptualLoss):
         target = target.permute(0, 3, 1, 2)
         inputs = inputs.permute(0, 3, 1, 2)
         return super().forward(inputs, target)
+
 
 if __name__ == '__main__':
     lpips = VGGPerceptualLoss()

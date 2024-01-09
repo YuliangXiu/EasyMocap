@@ -6,22 +6,24 @@
   @ FilePath: /EasyMocap/easymocap/visualize/pyrender_flags.py
 '''
 from pyrender import RenderFlags
-render_flags_default =  {
+
+render_flags_default = {
     'flip_wireframe': False,
     'all_wireframe': False,
     'all_solid': True,
-    'shadows': False, # TODO:bug exists in shadow mode
+    'shadows': False,    # TODO:bug exists in shadow mode
     'vertex_normals': False,
     'face_normals': False,
-    'cull_faces': True, # set to False
+    'cull_faces': True,    # set to False
     'point_size': 1.0,
-    'rgba':True
+    'rgba': True
 }
+
 
 def get_flags(flags):
     render_flags = render_flags_default.copy()
     render_flags.update(flags)
-    
+
     flags = RenderFlags.NONE
     if render_flags['flip_wireframe']:
         flags |= RenderFlags.FLIP_WIREFRAME

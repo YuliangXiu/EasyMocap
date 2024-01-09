@@ -1,13 +1,18 @@
 import os
 import shutil
-import numpy as np
-import cv2
-import open3d as o3d
-from os.path import join
-from os.path import join
 from glob import glob
+from os.path import join
+
+import cv2
+import numpy as np
+import open3d as o3d
 from tqdm import tqdm
-from easymocap.mytools.file_utils import read_json, write_keypoints3d, write_vertices, write_smpl
+
+from easymocap.mytools.file_utils import (
+    write_keypoints3d,
+    write_smpl,
+    write_vertices,
+)
 
 # Input and output path
 database = '/nas/home/shuaiqing/datasets/HI4D'
@@ -31,20 +36,21 @@ seqlist = [
     # 'pair37/pose37',
 ]
 
-
 from easymocap.bodymodel.smpl import SMPLModel
+
 body_model = SMPLModel(
-    model_path='data/bodymodels/SMPL_python_v.1.1.0/smpl/models/basicmodel_neutral_lbs_10_207_0_v1.1.0.pkl',
-    device = 'cuda',
-    regressor_path = 'data/smplx/J_regressor_body25.npy',
-    NUM_SHAPES = 10,
-    use_pose_blending =True
+    model_path=
+    'data/bodymodels/SMPL_python_v.1.1.0/smpl/models/basicmodel_neutral_lbs_10_207_0_v1.1.0.pkl',
+    device='cuda',
+    regressor_path='data/smplx/J_regressor_body25.npy',
+    NUM_SHAPES=10,
+    use_pose_blending=True
 )
 
 for seq in seqlist:
     root = join(database, seq)
     outroot = join(outdatabase, seq.replace('/', '_'))
-    
+
     cameraname = join(root, 'cameras', 'rgb_cameras.npz')
 
     cameras = dict(np.load(cameraname))
@@ -52,18 +58,13 @@ for seq in seqlist:
     cameras_out = {}
     for i, cam in enumerate(cameras['ids']):
         K = cameras['intrinsics'][i]
-        dist = cameras['dist_coeffs'][i:i+1]
+        dist = cameras['dist_coeffs'][i:i + 1]
         RT = cameras['extrinsics'][i]
         R = RT[:3, :3]
         T = RT[:3, 3:]
-        cameras_out[str(cam)] = {
-            'K': K,
-            'dist': dist,
-            'R': R,
-            'T': T
-        }
+        cameras_out[str(cam)] = {'K': K, 'dist': dist, 'R': R, 'T': T}
         # 绕x轴转90度
-        center = - R.T @ T
+        center = -R.T @ T
         print(cam, center.T[0])
 
     cameras = cameras_out
@@ -73,7 +74,7 @@ for seq in seqlist:
     mesh = o3d.io.read_triangle_mesh(meshanme)
     vertices = np.asarray(mesh.vertices)
 
-    R_global = cv2.Rodrigues(np.array([np.pi/2, 0, 0]))[0]
+    R_global = cv2.Rodrigues(np.array([np.pi / 2, 0, 0]))[0]
 
     vertices_R = vertices @ R_global.T
     z_min = np.min(vertices_R[:, 2])
@@ -85,11 +86,11 @@ for seq in seqlist:
     for key, cam in cameras.items():
         cam['R'] = cam['R'] @ R_global.T
         cam.pop('Rvec', '')
-        center = - cam['R'].T @ cam['T']
+        center = -cam['R'].T @ cam['T']
         newcenter = center + T_global
         newT = -cam['R'] @ newcenter
         cam['T'] = newT
-        center = - cam['R'].T @ cam['T']
+        center = -cam['R'].T @ cam['T']
         print(center.T)
 
     from easymocap.mytools.camera_utils import write_camera
@@ -104,37 +105,21 @@ for seq in seqlist:
         vertices = vertices @ R_global.T + T_global.T
         joints = np.matmul(regressor[None], vertices)
         # 绕x轴旋转90度
-        results = [{
-            'id': 0,
-            'keypoints3d': joints[0]
-        },
-        {
-            'id': 1,
-            'keypoints3d': joints[1]
-        }]
+        results = [{'id': 0, 'keypoints3d': joints[0]}, {'id': 1, 'keypoints3d': joints[1]}]
         outname = join(outroot, 'body25', os.path.basename(filename).replace('.npz', '.json'))
         if not os.path.exists(outname):
             write_keypoints3d(outname, results)
-        results = [{
-            'id': 0,
-            'vertices': vertices[0]
-        },
-        {
-            'id': 1,
-            'vertices': vertices[1]
-        }]
+        results = [{'id': 0, 'vertices': vertices[0]}, {'id': 1, 'vertices': vertices[1]}]
         outname = join(outroot, 'vertices-gt', os.path.basename(filename).replace('.npz', '.json'))
         if not os.path.exists(outname):
             write_vertices(outname, results)
         params0 = {
-            'poses': np.hstack([data['global_orient'][0], data['body_pose'][0]]),
-            'shapes': data['betas'][0],
-            'Th': data['transl'][0]
+            'poses': np.hstack([data['global_orient'][0], data['body_pose'][0]]), 'shapes':
+            data['betas'][0], 'Th': data['transl'][0]
         }
         params1 = {
-            'poses': np.hstack([data['global_orient'][1], data['body_pose'][1]]),
-            'shapes': data['betas'][1],
-            'Th': data['transl'][1]
+            'poses': np.hstack([data['global_orient'][1], data['body_pose'][1]]), 'shapes':
+            data['betas'][1], 'Th': data['transl'][1]
         }
         outname = join(outroot, 'smpl-gt', os.path.basename(filename).replace('.npz', '.json'))
         if not os.path.exists(outname) or True:

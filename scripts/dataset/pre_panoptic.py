@@ -5,19 +5,22 @@
   @ LastEditTime: 2021-09-06 13:10:53
   @ FilePath: /EasyMocap/scripts/dataset/pre_panoptic.py
 '''
-# process script for CMU-Panoptic data
-import numpy as np
 import json
+import os
+import shutil
 from glob import glob
 from os.path import join
-import os
-from easymocap.mytools import write_camera, read_json, save_json
-from easymocap.dataset import CONFIG
 
-import shutil
+# process script for CMU-Panoptic data
+import numpy as np
 from tqdm import tqdm, trange
 
+from easymocap.dataset import CONFIG
+from easymocap.mytools import read_json, save_json, write_camera
+
 SCALE = 100
+
+
 def convert_camera(inp, out):
     camnames = glob(join(inp, '*.json'))
     assert len(camnames) == 1, camnames
@@ -26,19 +29,20 @@ def convert_camera(inp, out):
         calib = json.load(cfile)
 
     # Cameras are identified by a tuple of (panel#,node#)
-    cameras_ = {cam['name']:cam for cam in calib['cameras']}
+    cameras_ = {cam['name']: cam for cam in calib['cameras']}
     cameras = {}
     # Convert data into numpy arrays for convenience
-    for k, cam in cameras_.items():    
+    for k, cam in cameras_.items():
         if cam['type'] != 'hd':
             continue
         cam['K'] = np.array(cam['K'])
         cam['dist'] = np.array(cam['distCoef']).reshape(1, -1)
         cam['R'] = np.array(cam['R'])
-        cam['T'] = np.array(cam['t']).reshape((3,1))/SCALE
-        cam = {key:cam[key] for key in ['K', 'dist', 'R', 'T']}
+        cam['T'] = np.array(cam['t']).reshape((3, 1)) / SCALE
+        cam = {key: cam[key] for key in ['K', 'dist', 'R', 'T']}
         cameras[k] = cam
     write_camera(cameras, out)
+
 
 def copy_videos(inp, out):
     outdir = join(out, 'videos')
@@ -47,6 +51,7 @@ def copy_videos(inp, out):
     for hdname in tqdm(hdnames):
         outname = join(outdir, hdname.replace('hd_', ''))
         shutil.copy(join(inp, 'hdVideos', hdname), outname)
+
 
 def convert_keypoints3d(inp, out):
     bodynames = join(inp, 'hdPose3d_stage1_coco19', 'body3DScene_{:08d}.json')
@@ -85,31 +90,32 @@ def convert_keypoints3d(inp, out):
         for data in hands['people']:
             pid = data['id']
             if 'left_hand' in data.keys():
-                left_p = np.array(data['left_hand']['landmarks']).reshape((-1,3))
-                left_v = np.array(data['left_hand']['averageScore']).reshape((-1,1))
-                left = np.hstack((left_p/SCALE, left_v))
+                left_p = np.array(data['left_hand']['landmarks']).reshape((-1, 3))
+                left_v = np.array(data['left_hand']['averageScore']).reshape((-1, 1))
+                left = np.hstack((left_p / SCALE, left_v))
                 if left[0, -1] > 0 and (left_v > 0).sum() > 10:
                     dist = np.linalg.norm(left[:1, :3] - lwrists[:, :3], axis=1)
                     dist_min, pid = dist.min(), dist.argmin()
                     if left_valid[pid] > dist_min:
                         left_valid[pid] = dist_min
-                        results[pid]['keypoints3d'][25:25+21, :] = left
+                        results[pid]['keypoints3d'][25:25 + 21, :] = left
             if 'right_hand' in data.keys():
-                right_p = np.array(data['right_hand']['landmarks']).reshape((-1,3))
-                right_v = np.array(data['right_hand']['averageScore']).reshape((-1,1))
-                right = np.hstack((right_p/SCALE, right_v))
+                right_p = np.array(data['right_hand']['landmarks']).reshape((-1, 3))
+                right_v = np.array(data['right_hand']['averageScore']).reshape((-1, 1))
+                right = np.hstack((right_p / SCALE, right_v))
                 if right[0, -1] > 0 and (right_v > 0).sum() > 10:
                     dist = np.linalg.norm(right[:1, :3] - rwrists[:, :3], axis=1)
                     dist_min, pid = dist.min(), dist.argmin()
                     if right_valid[pid] > dist_min:
                         right_valid[pid] = dist_min
-                        results[pid]['keypoints3d'][25+21:25+21+21, :] = right
+                        results[pid]['keypoints3d'][25 + 21:25 + 21 + 21, :] = right
             # find the correspondent people
         outname = join(out, '{:06d}.json'.format(i))
         # results = [val for key, val in results.items()]
         for res in results:
             res['keypoints3d'] = res['keypoints3d'].tolist()
         save_json(outname, results)
+
 
 if __name__ == "__main__":
     import argparse

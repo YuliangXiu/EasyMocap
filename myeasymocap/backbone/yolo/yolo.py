@@ -1,9 +1,11 @@
-import torch
-import numpy as np
 import os
-import cv2
-from os.path import join
 import pickle
+from os.path import join
+
+import cv2
+import numpy as np
+import torch
+
 
 def check_modelpath(paths):
     if isinstance(paths, str):

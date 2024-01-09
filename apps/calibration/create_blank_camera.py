@@ -6,11 +6,13 @@
   @ FilePath: /EasyMocapPublic/apps/calibration/create_blank_camera.py
 '''
 import os
-from os.path import join
-import numpy as np
 from glob import glob
-from easymocap.mytools.camera_utils import write_camera
+from os.path import join
+
 import cv2
+import numpy as np
+
+from easymocap.mytools.camera_utils import write_camera
 
 if __name__ == '__main__':
     import argparse
@@ -25,7 +27,7 @@ if __name__ == '__main__':
     cameras = {}
     for sub in subs:
         if len(args.shape) == 0:
-            imgnames = sum([], 
+            imgnames = sum([],
                 sorted(glob(join(args.path, 'images', sub, '*.jpg'))) + \
                 sorted(glob(join(args.path, 'images', sub, '*.png')))
             )
@@ -36,8 +38,8 @@ if __name__ == '__main__':
             print('Read shape {} from image {}'.format(img.shape, imgname))
         else:
             height, width = args.shape
-        focal = 1.2*min(height, width) # as colmap
-        K = np.array([focal, 0., width/2, 0., focal, height/2, 0. ,0., 1.]).reshape(3, 3)
-        camera = {'K':K ,'R': np.eye(3), 'T': np.zeros((3, 1)), 'dist': np.zeros((1, 5))}
+        focal = 1.2 * min(height, width)    # as colmap
+        K = np.array([focal, 0., width / 2, 0., focal, height / 2, 0., 0., 1.]).reshape(3, 3)
+        camera = {'K': K, 'R': np.eye(3), 'T': np.zeros((3, 1)), 'dist': np.zeros((1, 5))}
         cameras[sub] = camera
     write_camera(cameras, args.path)

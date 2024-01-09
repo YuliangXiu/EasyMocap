@@ -1,5 +1,7 @@
 import torch
+
 from .torch_utils import convert2cpu
+
 
 def parse_cfg(cfgfile):
     blocks = []
@@ -35,7 +37,7 @@ def parse_cfg(cfgfile):
 
 
 def print_cfg(blocks):
-    print('layer     filters    size              input                output');
+    print('layer     filters    size              input                output')
     prev_width = 416
     prev_height = 416
     prev_filters = 3
@@ -57,9 +59,12 @@ def print_cfg(blocks):
             pad = (kernel_size - 1) // 2 if is_pad else 0
             width = (prev_width + 2 * pad - kernel_size) // stride + 1
             height = (prev_height + 2 * pad - kernel_size) // stride + 1
-            print('%5d %-6s %4d  %d x %d / %d   %3d x %3d x%4d   ->   %3d x %3d x%4d' % (
-                ind, 'conv', filters, kernel_size, kernel_size, stride, prev_width, prev_height, prev_filters, width,
-                height, filters))
+            print(
+                '%5d %-6s %4d  %d x %d / %d   %3d x %3d x%4d   ->   %3d x %3d x%4d' % (
+                    ind, 'conv', filters, kernel_size, kernel_size, stride, prev_width, prev_height,
+                    prev_filters, width, height, filters
+                )
+            )
             prev_width = width
             prev_height = height
             prev_filters = filters
@@ -71,9 +76,12 @@ def print_cfg(blocks):
             stride = int(block['stride'])
             width = prev_width // stride
             height = prev_height // stride
-            print('%5d %-6s       %d x %d / %d   %3d x %3d x%4d   ->   %3d x %3d x%4d' % (
-                ind, 'max', pool_size, pool_size, stride, prev_width, prev_height, prev_filters, width, height,
-                filters))
+            print(
+                '%5d %-6s       %d x %d / %d   %3d x %3d x%4d   ->   %3d x %3d x%4d' % (
+                    ind, 'max', pool_size, pool_size, stride, prev_width, prev_height, prev_filters,
+                    width, height, filters
+                )
+            )
             prev_width = width
             prev_height = height
             prev_filters = filters
@@ -83,8 +91,10 @@ def print_cfg(blocks):
         elif block['type'] == 'avgpool':
             width = 1
             height = 1
-            print('%5d %-6s                   %3d x %3d x%4d   ->  %3d' % (
-                ind, 'avg', prev_width, prev_height, prev_filters, prev_filters))
+            print(
+                '%5d %-6s                   %3d x %3d x%4d   ->  %3d' %
+                (ind, 'avg', prev_width, prev_height, prev_filters, prev_filters)
+            )
             prev_width = width
             prev_height = height
             prev_filters = filters
@@ -92,12 +102,18 @@ def print_cfg(blocks):
             out_heights.append(prev_height)
             out_filters.append(prev_filters)
         elif block['type'] == 'softmax':
-            print('%5d %-6s                                    ->  %3d' % (ind, 'softmax', prev_filters))
+            print(
+                '%5d %-6s                                    ->  %3d' %
+                (ind, 'softmax', prev_filters)
+            )
             out_widths.append(prev_width)
             out_heights.append(prev_height)
             out_filters.append(prev_filters)
         elif block['type'] == 'cost':
-            print('%5d %-6s                                     ->  %3d' % (ind, 'cost', prev_filters))
+            print(
+                '%5d %-6s                                     ->  %3d' %
+                (ind, 'cost', prev_filters)
+            )
             out_widths.append(prev_width)
             out_heights.append(prev_height)
             out_filters.append(prev_filters)
@@ -106,8 +122,12 @@ def print_cfg(blocks):
             filters = stride * stride * prev_filters
             width = prev_width // stride
             height = prev_height // stride
-            print('%5d %-6s             / %d   %3d x %3d x%4d   ->   %3d x %3d x%4d' % (
-                ind, 'reorg', stride, prev_width, prev_height, prev_filters, width, height, filters))
+            print(
+                '%5d %-6s             / %d   %3d x %3d x%4d   ->   %3d x %3d x%4d' % (
+                    ind, 'reorg', stride, prev_width, prev_height, prev_filters, width, height,
+                    filters
+                )
+            )
             prev_width = width
             prev_height = height
             prev_filters = filters
@@ -119,8 +139,12 @@ def print_cfg(blocks):
             filters = prev_filters
             width = prev_width * stride
             height = prev_height * stride
-            print('%5d %-6s           * %d   %3d x %3d x%4d   ->   %3d x %3d x%4d' % (
-                ind, 'upsample', stride, prev_width, prev_height, prev_filters, width, height, filters))
+            print(
+                '%5d %-6s           * %d   %3d x %3d x%4d   ->   %3d x %3d x%4d' % (
+                    ind, 'upsample', stride, prev_width, prev_height, prev_filters, width, height,
+                    filters
+                )
+            )
             prev_width = width
             prev_height = height
             prev_filters = filters
@@ -143,16 +167,30 @@ def print_cfg(blocks):
                 assert (prev_height == out_heights[layers[1]])
                 prev_filters = out_filters[layers[0]] + out_filters[layers[1]]
             elif len(layers) == 4:
-                print('%5d %-6s %d %d %d %d' % (ind, 'route', layers[0], layers[1], layers[2], layers[3]))
+                print(
+                    '%5d %-6s %d %d %d %d' %
+                    (ind, 'route', layers[0], layers[1], layers[2], layers[3])
+                )
                 prev_width = out_widths[layers[0]]
                 prev_height = out_heights[layers[0]]
-                assert (prev_width == out_widths[layers[1]] == out_widths[layers[2]] == out_widths[layers[3]])
-                assert (prev_height == out_heights[layers[1]] == out_heights[layers[2]] == out_heights[layers[3]])
-                prev_filters = out_filters[layers[0]] + out_filters[layers[1]] + out_filters[layers[2]] + out_filters[
-                    layers[3]]
+                assert (
+                    prev_width == out_widths[layers[1]] == out_widths[layers[2]] ==
+                    out_widths[layers[3]]
+                )
+                assert (
+                    prev_height == out_heights[layers[1]] == out_heights[layers[2]] ==
+                    out_heights[layers[3]]
+                )
+                prev_filters = out_filters[layers[0]] + out_filters[layers[1]] + out_filters[
+                    layers[2]] + out_filters[layers[3]]
             else:
-                print("route error !!! {} {} {}".format(sys._getframe().f_code.co_filename,
-                                                        sys._getframe().f_code.co_name, sys._getframe().f_lineno))
+                print(
+                    "route error !!! {} {} {}".format(
+                        sys._getframe().f_code.co_filename,
+                        sys._getframe().f_code.co_name,
+                        sys._getframe().f_lineno
+                    )
+                )
 
             out_widths.append(prev_width)
             out_heights.append(prev_height)
@@ -174,7 +212,10 @@ def print_cfg(blocks):
             out_filters.append(prev_filters)
         elif block['type'] == 'connected':
             filters = int(block['output'])
-            print('%5d %-6s                            %d  ->  %3d' % (ind, 'connected', prev_filters, filters))
+            print(
+                '%5d %-6s                            %d  ->  %3d' %
+                (ind, 'connected', prev_filters, filters)
+            )
             prev_filters = filters
             out_widths.append(1)
             out_heights.append(1)
@@ -186,9 +227,11 @@ def print_cfg(blocks):
 def load_conv(buf, start, conv_model):
     num_w = conv_model.weight.numel()
     num_b = conv_model.bias.numel()
-    conv_model.bias.data.copy_(torch.from_numpy(buf[start:start + num_b]));
+    conv_model.bias.data.copy_(torch.from_numpy(buf[start:start + num_b]))
     start = start + num_b
-    conv_model.weight.data.copy_(torch.from_numpy(buf[start:start + num_w]).reshape(conv_model.weight.data.shape));
+    conv_model.weight.data.copy_(
+        torch.from_numpy(buf[start:start + num_w]).reshape(conv_model.weight.data.shape)
+    )
     start = start + num_w
     return start
 
@@ -205,15 +248,17 @@ def save_conv(fp, conv_model):
 def load_conv_bn(buf, start, conv_model, bn_model):
     num_w = conv_model.weight.numel()
     num_b = bn_model.bias.numel()
-    bn_model.bias.data.copy_(torch.from_numpy(buf[start:start + num_b]));
+    bn_model.bias.data.copy_(torch.from_numpy(buf[start:start + num_b]))
     start = start + num_b
-    bn_model.weight.data.copy_(torch.from_numpy(buf[start:start + num_b]));
+    bn_model.weight.data.copy_(torch.from_numpy(buf[start:start + num_b]))
     start = start + num_b
-    bn_model.running_mean.copy_(torch.from_numpy(buf[start:start + num_b]));
+    bn_model.running_mean.copy_(torch.from_numpy(buf[start:start + num_b]))
     start = start + num_b
-    bn_model.running_var.copy_(torch.from_numpy(buf[start:start + num_b]));
+    bn_model.running_var.copy_(torch.from_numpy(buf[start:start + num_b]))
     start = start + num_b
-    conv_model.weight.data.copy_(torch.from_numpy(buf[start:start + num_w]).reshape(conv_model.weight.data.shape));
+    conv_model.weight.data.copy_(
+        torch.from_numpy(buf[start:start + num_w]).reshape(conv_model.weight.data.shape)
+    )
     start = start + num_w
     return start
 
@@ -236,9 +281,9 @@ def save_conv_bn(fp, conv_model, bn_model):
 def load_fc(buf, start, fc_model):
     num_w = fc_model.weight.numel()
     num_b = fc_model.bias.numel()
-    fc_model.bias.data.copy_(torch.from_numpy(buf[start:start + num_b]));
+    fc_model.bias.data.copy_(torch.from_numpy(buf[start:start + num_b]))
     start = start + num_b
-    fc_model.weight.data.copy_(torch.from_numpy(buf[start:start + num_w]));
+    fc_model.weight.data.copy_(torch.from_numpy(buf[start:start + num_w]))
     start = start + num_w
     return start
 

@@ -1,10 +1,8 @@
 import os
 from os.path import join
-from easymocap.config.baseconfig import load_object, Config
+
+from easymocap.config.baseconfig import Config, load_object
 from easymocap.mytools import Timer
-import cv2
-from easymocap.dataset.config import CONFIG
-from easymocap.mytools.vis_base import plot_keypoints
 
 if __name__ == "__main__":
     import argparse

@@ -1,6 +1,7 @@
 import numpy as np
 from tqdm import tqdm
 
+
 class CheckFramePerson:
     def __init__(self, key) -> None:
         self.key = key

@@ -1,7 +1,10 @@
-import numpy as np
 import itertools
+
+import numpy as np
+
+from easymocap.mytools.debug_utils import log, mywarn
 from easymocap.mytools.triangulator import batch_triangulate, project_points
-from easymocap.mytools.debug_utils import log, mywarn, myerror
+
 
 def project_and_distance(kpts3d, RT, kpts2d):
     kpts_proj = project_points(kpts3d, RT)

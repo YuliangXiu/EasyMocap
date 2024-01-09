@@ -1,5 +1,6 @@
-import torch
 from functools import reduce
+
+import torch
 from torch.optim.optimizer import Optimizer
 
 
@@ -31,17 +32,7 @@ def _cubic_interpolate(x1, f1, g1, x2, f2, g2, bounds=None):
         return (xmin_bound + xmax_bound) / 2.
 
 
-def _strong_wolfe(obj_func,
-                  x,
-                  t,
-                  d,
-                  f,
-                  g,
-                  gtd,
-                  c1=1e-4,
-                  c2=0.9,
-                  tolerance_change=1e-9,
-                  max_ls=25):
+def _strong_wolfe(obj_func, x, t, d, f, g, gtd, c1=1e-4, c2=0.9, tolerance_change=1e-9, max_ls=25):
     # ported from https://github.com/torch/optim/blob/master/lswolfe.lua
     d_norm = d.abs().max()
     g = g.clone()
@@ -82,13 +73,8 @@ def _strong_wolfe(obj_func,
         max_step = t * 10
         tmp = t
         t = _cubic_interpolate(
-            t_prev,
-            f_prev,
-            gtd_prev,
-            t,
-            f_new,
-            gtd_new,
-            bounds=(min_step, max_step))
+            t_prev, f_prev, gtd_prev, t, f_new, gtd_new, bounds=(min_step, max_step)
+        )
 
         # next step
         t_prev = tmp
@@ -114,8 +100,9 @@ def _strong_wolfe(obj_func,
     low_pos, high_pos = (0, 1) if bracket_f[0] <= bracket_f[-1] else (1, 0)
     while not done and ls_iter < max_ls:
         # compute new trial value
-        t = _cubic_interpolate(bracket[0], bracket_f[0], bracket_gtd[0],
-                               bracket[1], bracket_f[1], bracket_gtd[1])
+        t = _cubic_interpolate(
+            bracket[0], bracket_f[0], bracket_gtd[0], bracket[1], bracket_f[1], bracket_gtd[1]
+        )
 
         # test that we are making sufficient progress:
         # in case `t` is so close to boundary, we mark that we are making
@@ -210,16 +197,17 @@ class LBFGS(Optimizer):
         history_size (int): update history size (default: 100).
         line_search_fn (str): either 'strong_wolfe' or None (default: None).
     """
-
-    def __init__(self,
-                 params,
-                 lr=1,
-                 max_iter=20,
-                 max_eval=None,
-                 tolerance_grad=1e-5,
-                 tolerance_change=1e-9,
-                 history_size=100,
-                 line_search_fn=None):
+    def __init__(
+        self,
+        params,
+        lr=1,
+        max_iter=20,
+        max_eval=None,
+        tolerance_grad=1e-5,
+        tolerance_change=1e-9,
+        history_size=100,
+        line_search_fn=None
+    ):
         if max_eval is None:
             max_eval = max_iter * 5 // 4
         defaults = dict(
@@ -229,7 +217,8 @@ class LBFGS(Optimizer):
             tolerance_grad=tolerance_grad,
             tolerance_change=tolerance_change,
             history_size=history_size,
-            line_search_fn=line_search_fn)
+            line_search_fn=line_search_fn
+        )
         super(LBFGS, self).__init__(params, defaults)
 
         if len(self.param_groups) != 1:
@@ -346,7 +335,7 @@ class LBFGS(Optimizer):
                 # do lbfgs update (update memory)
                 y = flat_grad.sub(prev_flat_grad)
                 s = d.mul(t)
-                ys = y.dot(s)  # y*s
+                ys = y.dot(s)    # y*s
                 if ys > 1e-10:
                     # updating memory
                     if len(old_dirs) == history_size:
@@ -361,7 +350,7 @@ class LBFGS(Optimizer):
                     ro.append(1. / ys)
 
                     # update scale of initial Hessian approximation
-                    H_diag = ys / y.dot(y)  # (y*y)
+                    H_diag = ys / y.dot(y)    # (y*y)
 
                 # compute the approximate (L-BFGS) inverse Hessian
                 # multiplied by the gradient
@@ -400,7 +389,7 @@ class LBFGS(Optimizer):
                 t = lr
 
             # directional derivative
-            gtd = flat_grad.dot(d)  # g * d
+            gtd = flat_grad.dot(d)    # g * d
 
             # directional derivative is below tolerance
             if gtd > -tolerance_change:
@@ -419,7 +408,8 @@ class LBFGS(Optimizer):
                         return self._directional_evaluate(closure, x, t, d)
 
                     loss, flat_grad, t, ls_func_evals = _strong_wolfe(
-                        obj_func, x_init, t, d, loss, flat_grad, gtd)
+                        obj_func, x_init, t, d, loss, flat_grad, gtd
+                    )
                 self._add_grad(t, d)
                 opt_cond = flat_grad.abs().max() <= tolerance_grad
             else:
@@ -468,4 +458,3 @@ class LBFGS(Optimizer):
         state['prev_loss'] = prev_loss
 
         return orig_loss
-

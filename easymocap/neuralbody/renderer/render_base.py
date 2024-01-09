@@ -1,29 +1,34 @@
-import numpy as np
-import cv2
-import torch.nn as nn
-import torch
-import time
 import json
+import time
+
+import numpy as np
+import torch
+import torch.nn as nn
+
 from ..model.base import augment_z_vals, concat
 
 _time_ = 0
+
+
 def tic():
     global _time_
     _time_ = time.time()
 
+
 def toc(name):
     global _time_
-    print('{:15s}: {:.1f}'.format(name, 1000*(time.time() - _time_)))
+    print('{:15s}: {:.1f}'.format(name, 1000 * (time.time() - _time_)))
     _time_ = time.time()
+
 
 def raw2acc(raw):
     alpha = raw[..., -1]
     weights = alpha * torch.cumprod(
-        torch.cat(
-            [torch.ones((alpha.shape[0], 1)).to(alpha), 1. - alpha + 1e-10],
-            -1), -1)[:, :-1]
+        torch.cat([torch.ones((alpha.shape[0], 1)).to(alpha), 1. - alpha + 1e-10], -1), -1
+    )[:, :-1]
     acc_map = torch.sum(weights, -1)
     return acc_map
+
 
 def raw2outputs(outputs, z_vals, rays_d, bkgd=None):
     """Transforms model's predictions to semantically meaningful values.
@@ -44,23 +49,24 @@ def raw2outputs(outputs, z_vals, rays_d, bkgd=None):
     elif 'density' in outputs.keys():
         dists = z_vals[..., 1:] - z_vals[..., :-1]
         dists = torch.cat(
-            [dists,
-            torch.Tensor([1e10]).expand(dists[..., :1].shape).to(dists)],
-            -1)  # [N_rays, N_samples]
+            [dists, torch.Tensor([1e10]).expand(dists[..., :1].shape).to(dists)], -1
+        )    # [N_rays, N_samples]
 
         dists = dists * torch.norm(rays_d, dim=-1)
         noise = 0.
         # alpha = raw2alpha(raw[..., -1] + noise, dists)  # [N_rays, N_samples]
-        alpha = 1 - torch.exp(-dists*torch.relu(outputs['density'][..., 0] + noise)) # (N_rays, N_samples_)
+        alpha = 1 - torch.exp(
+            -dists * torch.relu(outputs['density'][..., 0] + noise)
+        )    # (N_rays, N_samples_)
     else:
         raise NotImplementedError
     weights = alpha * torch.cumprod(
-        torch.cat(
-            [torch.ones((alpha.shape[0], 1)).to(alpha), 1. - alpha + 1e-10],
-            -1), -1)[:, :-1]
+        torch.cat([torch.ones((alpha.shape[0], 1)).to(alpha), 1. - alpha + 1e-10], -1), -1
+    )[:, :-1]
     acc_map = torch.sum(weights, -1)
     # ATTN: here depth must /||ray_d||
-    depth_map = torch.sum(weights * z_vals, -1)/(1e-10 + acc_map)/torch.norm(rays_d, dim=-1).squeeze()
+    depth_map = torch.sum(weights * z_vals, -1) / (1e-10 + acc_map) / torch.norm(rays_d,
+                                                                                 dim=-1).squeeze()
     results = {
         'acc_map': acc_map,
         'depth_map': depth_map,
@@ -68,17 +74,28 @@ def raw2outputs(outputs, z_vals, rays_d, bkgd=None):
     for key, val in outputs.items():
         if key == 'occupancy':
             continue
-        results[key+'_map'] = torch.sum(weights[..., None] * val, -2)  # [N_rays, 3]
+        results[key + '_map'] = torch.sum(weights[..., None] * val, -2)    # [N_rays, 3]
 
     if bkgd is not None:
         results['rgb_map'] = results['rgb_map'] + bkgd[0] * (1 - acc_map[..., None])
 
     return results
 
+
 class BaseRenderer(nn.Module):
-    def __init__(self, net, chunk, white_bkgd, use_occupancy, N_samples, split,
+    def __init__(
+        self,
+        net,
+        chunk,
+        white_bkgd,
+        use_occupancy,
+        N_samples,
+        split,
         render_layer=False,
-        return_raw=False, return_extra=False, use_canonical=False):
+        return_raw=False,
+        return_extra=False,
+        use_canonical=False
+    ):
         super().__init__()
         self.net = net
         self.chunk = chunk
@@ -91,7 +108,7 @@ class BaseRenderer(nn.Module):
         self.render_layer = render_layer
         if use_canonical:
             self.net.use_canonical = use_canonical
-    
+
     def forward_any(self, net, data, meta, bkgd):
         # give network and data, return the corresponding output
         raw, z_val_ = [], []
@@ -105,7 +122,7 @@ class BaseRenderer(nn.Module):
             near, far = [data[key][0, start:end][:, None] for key in ['near', 'far']]
             if False:
                 # z_vals: (nrays, N_samples)
-                z_vals = near * (1-z_steps) + far * z_steps
+                z_vals = near * (1 - z_steps) + far * z_steps
                 z_vals = z_vals.unsqueeze(2)
                 if self.split == 'train':
                     z_vals = augment_z_vals(z_vals)
@@ -114,14 +131,14 @@ class BaseRenderer(nn.Module):
                 raw_output = model.calculate_density_color(pts, viewdir)
             else:
                 z_vals, pts, raw_output = net.calculate_density_color_from_ray(
-                    ray_o[start:end], ray_d[start:end], near, far, self.split)
+                    ray_o[start:end], ray_d[start:end], near, far, self.split
+                )
             # directly render
             if bkgd.shape[1] != 1:
                 bkgd_ = bkgd[:, start:end]
             else:
                 bkgd_ = bkgd
-            results = raw2outputs(
-                raw_output, z_vals[..., 0], ray_d[start:end], bkgd_)
+            results = raw2outputs(raw_output, z_vals[..., 0], ray_d[start:end], bkgd_)
             raw.append(results)
         return raw
 
@@ -130,10 +147,13 @@ class BaseRenderer(nn.Module):
         for key in retlist[0].keys():
             val = torch.cat([r[key] for r in retlist])
             if mask is not None and val.shape[0] != mask.shape[0]:
-                val_ = torch.zeros((mask.shape[0], *val.shape[1:]), device=val.device, dtype=val.dtype)
-                if key == 'rgb_map': # consider the background
+                val_ = torch.zeros((mask.shape[0], *val.shape[1:]),
+                                   device=val.device,
+                                   dtype=val.dtype)
+                if key == 'rgb_map':    # consider the background
                     if bkgd is None:
-                        import ipdb; ipdb.set_trace()
+                        import ipdb
+                        ipdb.set_trace()
                     elif bkgd is not None and bkgd.shape[0] > 1:
                         val_[~mask] = bkgd[~mask]
                     else:
@@ -155,7 +175,7 @@ class BaseRenderer(nn.Module):
         # get the background
         bkgd_ = bkgd
         if bkgd is not None and bkgd.shape[0] > 1:
-            bkgd_ = bkgd[data['mask'][0]][None] # (1, nValid, 3)
+            bkgd_ = bkgd[data['mask'][0]][None]    # (1, nValid, 3)
         retlist = self.forward_any(model, data, batch['meta'], bkgd_)
         res = self.compose(retlist, data['mask'][0], bkgd)
         res['keys'] = keys
@@ -177,7 +197,7 @@ class BaseRenderer(nn.Module):
                     params = json.loads(key.split('_@')[1].replace("'", '"'))
                     operation[key] = params
         else:
-            mapkeys = {key:key for key in keys_all}
+            mapkeys = {key: key for key in keys_all}
         # keys_all.sort(key=lambda x:0 if x=='back' else int(x.split('_@')[0].replace('human_', ''))+1 if x.startswith('human') else 9999)
         # print('render keys: ', keys_all)
         ret_all = []
@@ -190,11 +210,13 @@ class BaseRenderer(nn.Module):
                 model = self.net.model(key)
                 # 这里手动设置一下key,因为在非share模式下,不会自动覆盖
                 model.current = key
-            
+
             mask = batch[key + '_mask'][0]
             start_ = mask[:start].sum()
             end_ = mask[:end].sum()
-            near, far = [batch[key+'_'+nearfar][0, start_:end_][:, None] for nearfar in ['near', 'far']]
+            near, far = [
+                batch[key + '_' + nearfar][0, start_:end_][:, None] for nearfar in ['near', 'far']
+            ]
             mask = mask[start:end]
             if mask.sum() < 1:
                 # print('Skip {} [{}, {}]'.format(key, start, end))
@@ -204,10 +226,10 @@ class BaseRenderer(nn.Module):
                     N_samples = self.net.N_samples[key]
                 else:
                     N_samples = self.net.N_samples['default']
-                dimGroups.append(dimGroups[-1]+N_samples)
+                dimGroups.append(dimGroups[-1] + N_samples)
                 z_steps = torch.linspace(0, 1, N_samples, device=ray_d.device).reshape(1, -1)
                 # z_vals: (nrays, N_samples)
-                z_vals = near * (1-z_steps) + far * z_steps
+                z_vals = near * (1 - z_steps) + far * z_steps
                 z_vals = z_vals.unsqueeze(2)
                 if self.split == 'train':
                     z_vals = augment_z_vals(z_vals)
@@ -216,8 +238,9 @@ class BaseRenderer(nn.Module):
                 raw_output = model.calculate_density_color(pts, viewdir)
             else:
                 z_vals, pts, raw_output = model.calculate_density_color_from_ray(
-                    ray_o[mask], ray_d[mask], near, far, self.split)
-                dimGroups.append(dimGroups[-1]+z_vals.shape[-2])
+                    ray_o[mask], ray_d[mask], near, far, self.split
+                )
+                dimGroups.append(dimGroups[-1] + z_vals.shape[-2])
                 if not self.use_occupancy:
                     # set the density of last points to zero
                     raw_output['density'][:, -1] = 0.
@@ -232,16 +255,19 @@ class BaseRenderer(nn.Module):
 
             raw_output['z_vals'] = z_vals[..., 0]
             # add instance
-            instance_ = torch.zeros((*pts.shape[:-1], len(keys_all)), 
-                dtype=pts.dtype, device=pts.device)
+            instance_ = torch.zeros((*pts.shape[:-1], len(keys_all)),
+                                    dtype=pts.dtype,
+                                    device=pts.device)
             instance_[..., keys_all.index(key)] = 1.
             raw_output['instance'] = instance_
             raw_padding = {}
             for key_out, val in raw_output.items():
-                if len(val.shape) == 1: # for traj
+                if len(val.shape) == 1:    # for traj
                     raw_padding[key_out] = val
                     continue
-                padding = torch.zeros([mask.shape[0], *val.shape[1:]], dtype=val.dtype, device=val.device)
+                padding = torch.zeros([mask.shape[0], *val.shape[1:]],
+                                      dtype=val.dtype,
+                                      device=val.device)
                 padding[mask] = val
                 raw_padding[key_out] = padding
             ret_all.append(raw_padding)
@@ -279,7 +305,7 @@ class BaseRenderer(nn.Module):
             #     raw_[acc_<self.thres_fog] = 0.
             # import ipdb; ipdb.set_trace()
             # if self.render_layer:
-                # ret_layer = self.render_func(raw_now, zval_now, ray_d)
+            # ret_layer = self.render_func(raw_now, zval_now, ray_d)
             #     for ret_name, val in ret_layer.items():
             #         ret_all[ret_name+'_'+key] = val
         if len(ret_all) == 0:
@@ -288,8 +314,9 @@ class BaseRenderer(nn.Module):
             color = torch.zeros([ray_d.shape[0], 1, 3], device=ray_d.device)
             instance = torch.zeros([ray_d.shape[0], 1, len(object_keys)], device=ray_d.device)
             z_vals_blank = torch.zeros([ray_d.shape[0], 1], device=ray_d.device)
-            blank_output = {'occupancy': occupancy, 'rgb': color, 'instance': instance,
-                'raw_alpha': occupancy}
+            blank_output = {
+                'occupancy': occupancy, 'rgb': color, 'instance': instance, 'raw_alpha': occupancy
+            }
             blank_output['raw_rgb'] = blank_output['rgb']
             ret = raw2outputs(blank_output, z_vals_blank, ray_d, bkgd)
             return ret
@@ -306,10 +333,15 @@ class BaseRenderer(nn.Module):
         ret = raw2outputs(raw_sorted, z_vals_sorted, ray_d, bkgd)
         if self.render_layer:
             for ikey, key in enumerate(object_keys):
-                raw_key = {k:v[:, dimGroups[ikey]:dimGroups[ikey+1]] for k,v in raw_concat.items()}
-                layer = raw2outputs(raw_key, z_vals[:, dimGroups[ikey]:dimGroups[ikey+1]], ray_d, bkgd)
+                raw_key = {
+                    k: v[:, dimGroups[ikey]:dimGroups[ikey + 1]]
+                    for k, v in raw_concat.items()
+                }
+                layer = raw2outputs(
+                    raw_key, z_vals[:, dimGroups[ikey]:dimGroups[ikey + 1]], ray_d, bkgd
+                )
                 for k in ['acc_map', 'rgb_map']:
-                    ret[key+'_'+k] = layer[k]
+                    ret[key + '_' + k] = layer[k]
         # toc('render')
         return ret
 
@@ -329,7 +361,7 @@ class BaseRenderer(nn.Module):
                 model = self.net.model(key)
             model.before(batch, key)
             if key in model.cache.keys():
-                res_cache[key+'_cache'] = model.cache[key]
+                res_cache[key + '_cache'] = model.cache[key]
         viewdir = batch['viewdirs'][0].unsqueeze(1)
         retlist = []
         for bn in range(0, viewdir.shape[0], self.chunk):
@@ -366,6 +398,7 @@ class BaseRenderer(nn.Module):
                 batch['rgb'][0, idx] = 0.
         return results
 
+
 class RendererWithBkgd(BaseRenderer):
     def forward(self, batch):
         keys = [d[0] for d in batch['meta']['keys']]
@@ -383,6 +416,7 @@ class RendererWithBkgd(BaseRenderer):
             results = self.forward_multi(batch, bkgd)
         return results
 
+
 class BackgroundRenderer(BaseRenderer):
     def forward(self, batch):
         keys = [d[0] for d in batch['meta']['keys']]
@@ -396,6 +430,7 @@ class BackgroundRenderer(BaseRenderer):
             results = self.forward_multi(batch, bkgd)
         return results
 
+
 class MirrorDemoRenderer(BackgroundRenderer):
     def forward(self, _batch):
         background = self.net.model('background').background
@@ -404,7 +439,7 @@ class MirrorDemoRenderer(BackgroundRenderer):
         accmap = np.zeros_like(background[:, :, 0])
         for mirror_key in ['left', 'right']:
             batch = _batch[mirror_key]
-            batch['meta']['index'] = batch['meta']['index']//2
+            batch['meta']['index'] = batch['meta']['index'] // 2
             H, W = int(batch['meta']['H'][0]), int(batch['meta']['W'][0])
             keys = [d[0] for d in batch['meta']['keys']]
             coord = batch['coord'][0].cpu().numpy()
@@ -415,8 +450,7 @@ class MirrorDemoRenderer(BackgroundRenderer):
             rgb_map = results['rgb_map'][0].detach().cpu().numpy()
             acc_map = np.clip(results['acc_map'][0].detach().cpu().numpy(), 0., 1.).reshape(-1, 1)
             accmap[coord[:, 0], coord[:, 1]] = acc_map[..., 0]
-            background[coord[:, 0], coord[:, 1]] = rgb_map * acc_map + background[coord[:, 0], coord[:, 1]] * (1-acc_map)
-        return {
-            'rgb_map': background, 
-            'acc_map': accmap,
-            'meta': batch['meta']}
+            background[coord[:, 0],
+                       coord[:, 1]] = rgb_map * acc_map + background[coord[:, 0],
+                                                                     coord[:, 1]] * (1 - acc_map)
+        return {'rgb_map': background, 'acc_map': accmap, 'meta': batch['meta']}

@@ -1,11 +1,19 @@
 import os
-from typing import Any
-import numpy as np
-import cv2
 from os.path import join
-from easymocap.mytools.vis_base import plot_keypoints_auto, merge, plot_bbox, get_rgb, plot_cross
+
+import cv2
+import numpy as np
+
 from easymocap.datasets.base import add_logo
 from easymocap.mytools.camera_utils import Undistort
+from easymocap.mytools.vis_base import (
+    get_rgb,
+    merge,
+    plot_bbox,
+    plot_cross,
+    plot_keypoints_auto,
+)
+
 
 def projectPoints(k3d, camera):
     k3d0 = np.ascontiguousarray(k3d[:, :3])

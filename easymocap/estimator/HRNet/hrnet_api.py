@@ -6,6 +6,7 @@
     @ Mail: s_q@zju.edu.cn
 '''
 from os.path import join
+
 import cv2
 import numpy as np
 import torch
@@ -13,8 +14,12 @@ from torchvision.transforms import transforms
 
 from .hrnet import HRNet
 
-COCO17_IN_BODY25 = [0,16,15,18,17,5,2,6,3,7,4,12,9,13,10,14,11]
-pairs = [[1, 8], [1, 2], [1, 5], [2, 3], [3, 4], [5, 6], [6, 7], [8, 9], [9, 10], [10, 11], [8, 12], [12, 13], [13, 14], [1, 0], [0,15], [15,17], [0,16], [16,18], [14,19], [19,20], [14,21], [11,22], [22,23], [11,24]]
+COCO17_IN_BODY25 = [0, 16, 15, 18, 17, 5, 2, 6, 3, 7, 4, 12, 9, 13, 10, 14, 11]
+pairs = [[1, 8], [1, 2], [1, 5], [2, 3], [3, 4], [5, 6], [6, 7], [8, 9], [9, 10], [10, 11], [8, 12],
+         [12, 13], [13, 14], [1, 0], [0, 15], [15, 17], [0, 16], [16, 18], [14, 19], [19, 20],
+         [14, 21], [11, 22], [22, 23], [11, 24]]
+
+
 def coco17tobody25(points2d):
     kpts = np.zeros((points2d.shape[0], 25, 3))
     kpts[:, COCO17_IN_BODY25, :2] = points2d[:, :, :2]
@@ -27,6 +32,7 @@ def coco17tobody25(points2d):
     # kpts = kpts[:, :, [1,0,2]]
     return kpts
 
+
 # 生成高斯核
 def generate_gauss(sigma):
     tmp_size = sigma * 3
@@ -35,16 +41,15 @@ def generate_gauss(sigma):
     y = x[:, np.newaxis]
     x0 = y0 = size // 2
     # The gaussian is not normalized, we want the center value to equal 1
-    g = np.exp(- ((x - x0) ** 2 + (y - y0) ** 2) / (2 * sigma ** 2))
+    g = np.exp(-((x - x0)**2 + (y - y0)**2) / (2 * sigma**2))
     return g, tmp_size
+
 
 gauss = {}
 for SIGMA in range(1, 5):
     gauss_kernel, gauss_radius = generate_gauss(SIGMA)
-    gauss[SIGMA] = {
-        'kernel': gauss_kernel,
-        'radius': gauss_radius
-    }
+    gauss[SIGMA] = {'kernel': gauss_kernel, 'radius': gauss_radius}
+
 
 def box_to_center_scale(box, model_image_width, model_image_height, scale_factor=1.25):
     """convert a box to center,scale information required for pose transformation
@@ -65,8 +70,8 @@ def box_to_center_scale(box, model_image_width, model_image_height, scale_factor
 
     bottom_left_corner = (box[0], box[1])
     top_right_corner = (box[2], box[3])
-    box_width = top_right_corner[0]-bottom_left_corner[0]
-    box_height = top_right_corner[1]-bottom_left_corner[1]
+    box_width = top_right_corner[0] - bottom_left_corner[0]
+    box_height = top_right_corner[1] - bottom_left_corner[1]
     bottom_left_x = bottom_left_corner[0]
     bottom_left_y = bottom_left_corner[1]
     center[0] = bottom_left_x + box_width * 0.5
@@ -79,11 +84,10 @@ def box_to_center_scale(box, model_image_width, model_image_height, scale_factor
         box_height = box_width * 1.0 / aspect_ratio
     elif box_width < aspect_ratio * box_height:
         box_width = box_height * aspect_ratio
-    scale = np.array(
-        [box_width * 1.0 / pixel_std, box_height * 1.0 / pixel_std],
-        dtype=np.float32)
+    scale = np.array([box_width * 1.0 / pixel_std, box_height * 1.0 / pixel_std], dtype=np.float32)
     scale = scale * scale_factor
     return center, scale
+
 
 def get_dir(src_point, rot_rad):
     sn, cs = np.sin(rot_rad), np.cos(rot_rad)
@@ -94,14 +98,14 @@ def get_dir(src_point, rot_rad):
 
     return src_result
 
+
 def get_3rd_point(a, b):
     direct = a - b
     return b + np.array([-direct[1], direct[0]], dtype=np.float32)
 
 
 def get_affine_transform(
-        center, scale, rot, output_size,
-        shift=np.array([0, 0], dtype=np.float32), inv=0
+    center, scale, rot, output_size, shift=np.array([0, 0], dtype=np.float32), inv=0
 ):
     if not isinstance(scale, np.ndarray) and not isinstance(scale, list):
         print(scale)
@@ -164,15 +168,18 @@ def get_max_preds(batch_heatmaps):
     preds *= pred_mask
     return preds, maxvals
 
+
 def affine_transform(pt, t):
     new_pt = np.array([pt[0], pt[1], 1.]).T
     new_pt = np.dot(t, new_pt)
     return new_pt[:2]
 
+
 def batch_affine_transform(points, trans):
     points = np.hstack((points[:, :2], np.ones((points.shape[0], 1))))
     out = points @ trans.T
     return out
+
 
 def transform_preds(coords, center, scale, rot, output_size):
     target_coords = np.zeros(coords.shape)
@@ -180,31 +187,36 @@ def transform_preds(coords, center, scale, rot, output_size):
     target_coords[:, :2] = batch_affine_transform(coords, trans)
     return target_coords
 
-config_ = {'kintree': [[1, 0], [2, 0], [3, 1], [4, 2], [5, 0], [6, 0], [7, 5], [8, 6], [9, 7], [10, 8], [11, 5], [12, 6], [13, 11], [
-    14, 12], [15, 13], [16, 14], [6, 5], [12, 11]], 'color': ['g', 'r', 'g', 'r', 'g', 'r', 'g', 'r', 'g', 'r', 'g', 'r', 'g', 'r', 'g', 'r', 'k', 'k']}
+
+config_ = {
+    'kintree': [[1, 0], [2, 0], [3, 1], [4, 2], [5, 0], [6, 0], [7, 5], [8, 6], [9, 7], [10, 8],
+                [11, 5], [12, 6], [13, 11], [14, 12], [15, 13], [16, 14], [6, 5], [12,
+                                                                                   11]], 'color':
+    ['g', 'r', 'g', 'r', 'g', 'r', 'g', 'r', 'g', 'r', 'g', 'r', 'g', 'r', 'g', 'r', 'k', 'k']
+}
 colors_table = {
     # colorblind/print/copy safe:
     '_blue': [0.65098039, 0.74117647, 0.85882353],
     '_pink': [.9, .7, .7],
-    '_mint': [ 166/255.,  229/255.,  204/255.],
-    '_mint2': [ 202/255.,  229/255.,  223/255.],
-    '_green': [ 153/255.,  216/255.,  201/255.],
-    '_green2': [ 171/255.,  221/255.,  164/255.],
-    '_red': [ 251/255.,  128/255.,  114/255.],
-    '_orange': [ 253/255.,  174/255.,  97/255.],
-    '_yellow': [ 250/255.,  230/255.,  154/255.],
-    'r':[255/255,0,0],
-    'g':[0,255/255,0],
-    'b':[0,0,255/255],
-    'k':[0,0,0],
-    'y':[255/255,255/255,0],
-    'purple':[128/255,0,128/255]
+    '_mint': [166 / 255., 229 / 255., 204 / 255.],
+    '_mint2': [202 / 255., 229 / 255., 223 / 255.],
+    '_green': [153 / 255., 216 / 255., 201 / 255.],
+    '_green2': [171 / 255., 221 / 255., 164 / 255.],
+    '_red': [251 / 255., 128 / 255., 114 / 255.],
+    '_orange': [253 / 255., 174 / 255., 97 / 255.],
+    '_yellow': [250 / 255., 230 / 255., 154 / 255.],
+    'r': [255 / 255, 0, 0],
+    'g': [0, 255 / 255, 0],
+    'b': [0, 0, 255 / 255],
+    'k': [0, 0, 0],
+    'y': [255 / 255, 255 / 255, 0],
+    'purple': [128 / 255, 0, 128 / 255]
 }
 for key, val in colors_table.items():
-    colors_table[key] = tuple([int(val[2]*255), int(val[1]*255), int(val[0]*255)])
+    colors_table[key] = tuple([int(val[2] * 255), int(val[1] * 255), int(val[0] * 255)])
 
-def save_batch_heatmaps(batch_image, batch_heatmaps, file_name,
-                        normalize=True):
+
+def save_batch_heatmaps(batch_image, batch_heatmaps, file_name, normalize=True):
     '''
     batch_image: [batch_size, channel, height, width]
     batch_heatmaps: ['batch_size, num_joints, height, width]
@@ -222,9 +234,7 @@ def save_batch_heatmaps(batch_image, batch_heatmaps, file_name,
     heatmap_height = batch_heatmaps.size(2)
     heatmap_width = batch_heatmaps.size(3)
 
-    grid_image = np.zeros((batch_size*heatmap_height,
-                           (num_joints+2)*heatmap_width,
-                           3),
+    grid_image = np.zeros((batch_size * heatmap_height, (num_joints + 2) * heatmap_width, 3),
                           dtype=np.uint8)
 
     preds, maxvals = get_max_preds(batch_heatmaps.detach().cpu().numpy())
@@ -240,8 +250,7 @@ def save_batch_heatmaps(batch_image, batch_heatmaps, file_name,
                                     .byte()\
                                     .cpu().numpy()
 
-        resized_image = cv2.resize(image,
-                                   (int(heatmap_width), int(heatmap_height)))
+        resized_image = cv2.resize(image, (int(heatmap_width), int(heatmap_height)))
         resized_image_copy = resized_image.copy()
         height_begin = heatmap_height * i
         height_end = heatmap_height * (i + 1)
@@ -252,29 +261,29 @@ def save_batch_heatmaps(batch_image, batch_heatmaps, file_name,
                 continue
             plot_line(resized_image_copy, preds[i][src], preds[i][dst], colors_table[c], 1)
         for j in range(num_joints):
-            cv2.circle(resized_image,
-                       (int(preds[i][j][0]), int(preds[i][j][1])),
-                       1, [0, 0, 255], 1)
+            cv2.circle(resized_image, (int(preds[i][j][0]), int(preds[i][j][1])), 1, [0, 0, 255], 1)
             heatmap = heatmaps[j, :, :]
-            mask = (heatmap > 0.1)[:,:,None]
+            mask = (heatmap > 0.1)[:, :, None]
             colored_heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
-            masked_image = (colored_heatmap*0.7 + resized_image*0.3)*mask + resized_image*(1-mask)
-            cv2.circle(masked_image,
-                       (int(preds[i][j][0]), int(preds[i][j][1])),
-                       1, [0, 0, 255], 1)
+            masked_image = (colored_heatmap * 0.7 +
+                            resized_image * 0.3) * mask + resized_image * (1 - mask)
+            cv2.circle(masked_image, (int(preds[i][j][0]), int(preds[i][j][1])), 1, [0, 0, 255], 1)
 
-            width_begin = heatmap_width * (j+2)
-            width_end = heatmap_width * (j+2+1)
+            width_begin = heatmap_width * (j + 2)
+            width_end = heatmap_width * (j + 2 + 1)
             grid_image[height_begin:height_end, width_begin:width_end, :] = \
                 masked_image
             # grid_image[height_begin:height_end, width_begin:width_end, :] = \
             #     colored_heatmap*0.7 + resized_image*0.3
 
         grid_image[height_begin:height_end, 0:heatmap_width, :] = resized_image
-        grid_image[height_begin:height_end, heatmap_width:heatmap_width+heatmap_width, :] = resized_image_copy
+        grid_image[height_begin:height_end,
+                   heatmap_width:heatmap_width + heatmap_width, :] = resized_image_copy
     cv2.imwrite(file_name, grid_image)
-    
+
+
 import math
+
 
 def get_final_preds(batch_heatmaps, center, scale, rot=None, flip=None):
     coords, maxvals = get_max_preds(batch_heatmaps)
@@ -289,13 +298,10 @@ def get_final_preds(batch_heatmaps, center, scale, rot=None, flip=None):
                 hm = batch_heatmaps[n][p]
                 px = int(math.floor(coords[n][p][0] + 0.5))
                 py = int(math.floor(coords[n][p][1] + 0.5))
-                if 1 < px < heatmap_width-1 and 1 < py < heatmap_height-1:
-                    diff = np.array(
-                        [
-                            hm[py][px+1] - hm[py][px-1],
-                            hm[py+1][px]-hm[py-1][px]
-                        ]
-                    )
+                if 1 < px < heatmap_width - 1 and 1 < py < heatmap_height - 1:
+                    diff = np.array([
+                        hm[py][px + 1] - hm[py][px - 1], hm[py + 1][px] - hm[py - 1][px]
+                    ])
                     coords[n][p] += np.sign(diff) * .25
 
     preds = coords.copy()
@@ -313,6 +319,7 @@ def get_final_preds(batch_heatmaps, center, scale, rot=None, flip=None):
             coords[i], center[i], scale[i], _rot, [heatmap_width, heatmap_height]
         )
     return preds, maxvals
+
 
 def get_gaussian_maps(net_out, keypoints, sigma):
     radius, kernel = gauss[sigma]['radius'], gauss[sigma]['kernel']
@@ -341,29 +348,39 @@ def get_gaussian_maps(net_out, keypoints, sigma):
                 kernel[g_y[0]:g_y[1], g_x[0]:g_x[1]]
     return weights
 
+
 humanId = 0
 
+
 class SimpleHRNet:
-    def __init__(self, c, nof_joints, checkpoint_path, device, resolution=(288, 384),):
+    def __init__(
+        self,
+        c,
+        nof_joints,
+        checkpoint_path,
+        device,
+        resolution=(288, 384),
+    ):
         self.device = device
         self.c = c
         self.nof_joints = nof_joints
         self.checkpoint_path = checkpoint_path
         self.max_batch_size = 64
-        self.resolution = resolution  # in the form (height, width) as in the original implementation
+        self.resolution = resolution    # in the form (height, width) as in the original implementation
         self.transform = transforms.Compose([
-                # transforms.ToPILImage(),
-                # transforms.Resize((self.resolution[0], self.resolution[1])),  # (height, width)
-                transforms.ToTensor(),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-            ])
+        # transforms.ToPILImage(),
+        # transforms.Resize((self.resolution[0], self.resolution[1])),  # (height, width)
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
         self.model = HRNet(c=c, nof_joints=nof_joints).to(device)
         self.model.load_state_dict(torch.load(checkpoint_path, map_location=self.device))
         self.model.eval()
-    
+
     def __call__(self, image, bboxes, rot=0, net_out=False):
-        # image: 
-        images = torch.zeros((len(bboxes), 3, self.resolution[1], self.resolution[0]), device=self.device)  # (height, width)
+        # image:
+        images = torch.zeros((len(bboxes), 3, self.resolution[1], self.resolution[0]),
+                             device=self.device)    # (height, width)
         if len(bboxes) > 0:
             # pose estimation : for multiple people
             centers, scales, trans_all = [], [], []
@@ -376,44 +393,39 @@ class SimpleHRNet:
             for i, trans in enumerate(trans_all):
                 # Crop smaller image of people
                 model_input = cv2.warpAffine(
-                    image, trans,
-                    (int(self.resolution[0]), int(self.resolution[1])),
-                    flags=cv2.INTER_LINEAR)
+                    image,
+                    trans, (int(self.resolution[0]), int(self.resolution[1])),
+                    flags=cv2.INTER_LINEAR
+                )
                 # cv2.imshow('input', model_input)
                 # cv2.waitKey(0)
                 # hwc -> 1chw
-                model_input = self.transform(model_input)#.unsqueeze(0)
+                model_input = self.transform(model_input)    #.unsqueeze(0)
                 images[i] = model_input
-            images = images.to(self.device) 
+            images = images.to(self.device)
             with torch.no_grad():
                 out = self.model(images)
             out = out.cpu().detach().numpy()
             if net_out:
                 return out, trans_all, centers, scales, rot
             coords, max_val = get_final_preds(
-                out,
-                np.asarray(centers),
-                np.asarray(scales),
-                [rot for _ in range(out.shape[0])])
+                out, np.asarray(centers), np.asarray(scales), [rot for _ in range(out.shape[0])]
+            )
             pts = np.concatenate((coords, max_val), axis=2)
             return coco17tobody25(pts)
         else:
             return np.empty(0, 25, 3)
-        
+
     def predict_with_previous(self, image, bboxes, keypoints, sigma):
         # (batch, nJoints, height, width)
         net_out, trans_all, centers, scales, rot = self.__call__(image, bboxes, net_out=True)
         keypoints = keypoints[:, COCO17_IN_BODY25]
         keypoints_rescale = keypoints.copy()
         for i in range(keypoints.shape[0]):
-            keypoints_rescale[..., :2] = batch_affine_transform(keypoints[i], trans_all[i])/4
-        weights = get_gaussian_maps(net_out, keypoints_rescale, sigma)        
+            keypoints_rescale[..., :2] = batch_affine_transform(keypoints[i], trans_all[i]) / 4
+        weights = get_gaussian_maps(net_out, keypoints_rescale, sigma)
         out = net_out * weights
-        coords, max_val = get_final_preds(
-            out,
-            np.asarray(centers),
-            np.asarray(scales),
-            rot)
+        coords, max_val = get_final_preds(out, np.asarray(centers), np.asarray(scales), rot)
         pts = np.concatenate((coords, max_val), axis=2)
         return coco17tobody25(pts)
 
@@ -426,7 +438,8 @@ class SimpleHRNet:
         image_pose = image
         # image_pose = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         if detections is not None:
-            images = torch.zeros((len(detections), 3, self.resolution[1], self.resolution[0]), device=self.device)  # (height, width)
+            images = torch.zeros((len(detections), 3, self.resolution[1], self.resolution[0]),
+                                 device=self.device)    # (height, width)
             # pose estimation : for multiple people
             centers = []
             scales = []
@@ -440,18 +453,18 @@ class SimpleHRNet:
                 # Crop smaller image of people
                 model_input = cv2.warpAffine(
                     image_pose,
-                    trans,
-                    (int(self.resolution[0]), int(self.resolution[1])),
-                    flags=cv2.INTER_LINEAR)
+                    trans, (int(self.resolution[0]), int(self.resolution[1])),
+                    flags=cv2.INTER_LINEAR
+                )
                 if keypoints is not None:
                     kpts_homo = keypoints[i].copy()
                     kpts_homo[:, 2] = 1
-                    kpts_rescale[i] = (kpts_homo @ trans.T)/4
+                    kpts_rescale[i] = (kpts_homo @ trans.T) / 4
                 # global humanId
                 # cv2.imwrite('../output/debughrnet/person_{}.jpg'.format(humanId), model_input[:,:,[2,1,0]])
                 # humanId += 1
                 # hwc -> 1chw
-                model_input = self.transform(model_input)#.unsqueeze(0)
+                model_input = self.transform(model_input)    #.unsqueeze(0)
                 images[i] = model_input
         # torch.cuda.synchronize(self.device)
 
@@ -460,7 +473,7 @@ class SimpleHRNet:
             return np.empty((0, 25, 3))
         else:
             # start = time.time()
-            images = images.to(self.device) 
+            images = images.to(self.device)
             # torch.cuda.synchronize(self.device)
 
             # print(' - spending {:.2f}ms in copy to cuda.'.format(1000*(time.time() - start)))
@@ -469,11 +482,14 @@ class SimpleHRNet:
                 if len(images) <= self.max_batch_size:
                     out = self.model(images)
                 else:
-                    out = torch.empty(
-                        (images.shape[0], self.nof_joints, self.resolution[1] // 4, self.resolution[0] // 4)
-                    ).to(self.device)
+                    out = torch.empty((
+                        images.shape[0], self.nof_joints, self.resolution[1] // 4,
+                        self.resolution[0] // 4
+                    )).to(self.device)
                     for i in range(0, len(images), self.max_batch_size):
-                        out[i:i + self.max_batch_size] = self.model(images[i:i + self.max_batch_size])
+                        out[i:i + self.max_batch_size] = self.model(
+                            images[i:i + self.max_batch_size]
+                        )
             # torch.cuda.synchronize(self.device)
             global humanId
             if keypoints is not None:
@@ -513,10 +529,7 @@ class SimpleHRNet:
                 # save_batch_heatmaps(images, torch.Tensor(out), filename)
             else:
                 out = out.cpu().detach().numpy()
-            coords, max_val = get_final_preds(
-                out,
-                np.asarray(centers),
-                np.asarray(scales))
+            coords, max_val = get_final_preds(out, np.asarray(centers), np.asarray(scales))
             pts = np.concatenate((coords, max_val), axis=2)
             # torch.cuda.synchronize(self.device)
             # print(' - spending {:.2f}ms in postprocess.'.format(1000*(time.time() - start)))

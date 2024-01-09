@@ -5,14 +5,16 @@
   @ LastEditTime: 2021-06-04 17:00:15
   @ FilePath: /EasyMocapRelease/apps/vis/vis_server.py
 '''
+from easymocap.config.vis_socket import Config
 # socket server for 3D visualization
 from easymocap.socket.o3d import VisOpen3DSocket
-from easymocap.config.vis_socket import Config
+
 
 def main(cfg):
     server = VisOpen3DSocket(cfg.host, cfg.port, cfg)
     while True:
         server.update()
+
 
 if __name__ == "__main__":
     cfg = Config.load_from_args()

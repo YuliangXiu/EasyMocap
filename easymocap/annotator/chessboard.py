@@ -5,55 +5,57 @@
   @ LastEditTime: 2022-10-25 20:56:26
   @ FilePath: /EasyMocapRelease/easymocap/annotator/chessboard.py
 '''
-import numpy as np
 import cv2
+import numpy as np
 from func_timeout import func_set_timeout
 
+
 def getChessboard3d(pattern, gridSize, axis='xy'):
-    object_points = np.zeros((pattern[1]*pattern[0], 3), np.float32)
+    object_points = np.zeros((pattern[1] * pattern[0], 3), np.float32)
     # 注意：这里为了让标定板z轴朝上，设定了短边是x，长边是y
-    object_points[:,:2] = np.mgrid[0:pattern[0], 0:pattern[1]].T.reshape(-1,2)
+    object_points[:, :2] = np.mgrid[0:pattern[0], 0:pattern[1]].T.reshape(-1, 2)
     object_points[:, [0, 1]] = object_points[:, [1, 0]]
     object_points = object_points * gridSize
     if axis == 'zx':
         object_points = object_points[:, [1, 2, 0]]
     return object_points
 
-colors_chessboard_bar = [
-    [0, 0, 255],
-    [0, 128, 255],
-    [0, 200, 200],
-    [0, 255, 0],
-    [200, 200, 0],
-    [255, 0, 0],
-    [255, 0, 250]
-]
+
+colors_chessboard_bar = [[0, 0, 255], [0, 128, 255], [0, 200, 200], [0, 255, 0], [200, 200, 0],
+                         [255, 0, 0], [255, 0, 250]]
+
 
 def get_lines_chessboard(pattern=(9, 6)):
     w, h = pattern[0], pattern[1]
     lines = []
     lines_cols = []
-    for i in range(w*h-1):
-        lines.append([i, i+1])
-        lines_cols.append(colors_chessboard_bar[(i//w)%len(colors_chessboard_bar)])
+    for i in range(w * h - 1):
+        lines.append([i, i + 1])
+        lines_cols.append(colors_chessboard_bar[(i // w) % len(colors_chessboard_bar)])
     return lines, lines_cols
+
 
 def _findChessboardCorners(img, pattern, debug):
     "basic function"
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
-    retval, corners = cv2.findChessboardCorners(img, pattern, 
-        flags=cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_FAST_CHECK + cv2.CALIB_CB_FILTER_QUADS)
+    retval, corners = cv2.findChessboardCorners(
+        img,
+        pattern,
+        flags=cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_FAST_CHECK + cv2.CALIB_CB_FILTER_QUADS
+    )
     if not retval:
         return False, None
     corners = cv2.cornerSubPix(img, corners, (11, 11), (-1, -1), criteria)
     corners = corners.squeeze()
     return True, corners
 
+
 def _findChessboardCornersAdapt(img, pattern, debug):
     "Adapt mode"
     img = cv2.adaptiveThreshold(img, 255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,\
                 cv2.THRESH_BINARY, 21, 2)
     return _findChessboardCorners(img, pattern, debug)
+
 
 @func_set_timeout(5)
 def findChessboardCorners(img, annots, pattern, debug=False):
@@ -63,11 +65,12 @@ def findChessboardCorners(img, annots, pattern, debug=False):
     elif annots['visited']:
         return None
     annots['visited'] = True
-    gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     # Find the chess board corners
     for func in [_findChessboardCorners, _findChessboardCornersAdapt]:
         ret, corners = func(gray, pattern, debug)
-        if ret:break
+        if ret:
+            break
     else:
         return None
     # found the corners
@@ -78,18 +81,19 @@ def findChessboardCorners(img, annots, pattern, debug=False):
     annots['keypoints2d'] = corners.tolist()
     return show
 
+
 def create_chessboard(path, keypoints3d, out='annots'):
-    from tqdm import tqdm
-    from os.path import join
-    from .file_utils import getFileList, save_json, read_json
     import os
+    from os.path import join
+
+    from tqdm import tqdm
+
+    from .file_utils import getFileList, read_json, save_json
     keypoints2d = np.zeros((keypoints3d.shape[0], 3))
     imgnames = getFileList(join(path, 'images'), ext='.jpg', max=1)
     imgnames = [join('images', i) for i in imgnames]
     template = {
-        'keypoints3d': keypoints3d.tolist(),
-        'keypoints2d': keypoints2d.tolist(),
-        'visited': False
+        'keypoints3d': keypoints3d.tolist(), 'keypoints2d': keypoints2d.tolist(), 'visited': False
     }
     for imgname in tqdm(imgnames, desc='create template chessboard'):
         annname = imgname.replace('images', out).replace('.jpg', '.json')
@@ -123,9 +127,7 @@ def detect_charuco(image, aruco_type, long, short, squareLength, aruco_len):
     corners3d = corners[:, [1, 0, 2]]
     keypoints2d = np.zeros_like(corners3d)
     # 查找标志块的左上角点
-    corners, ids, _ = cv2.aruco.detectMarkers(
-        image=image, dictionary=dictionary, parameters=None
-    )
+    corners, ids, _ = cv2.aruco.detectMarkers(image=image, dictionary=dictionary, parameters=None)
     # 棋盘格黑白块内角点
     if ids is not None:
         retval, charucoCorners, charucoIds = cv2.aruco.interpolateCornersCharuco(
@@ -140,8 +142,9 @@ def detect_charuco(image, aruco_type, long, short, squareLength, aruco_len):
         retval = False
     return retval, keypoints2d, corners3d
 
+
 class CharucoBoard:
-    def __init__(self, long, short, squareLength, aruco_len, aruco_type) -> None:    
+    def __init__(self, long, short, squareLength, aruco_len, aruco_type) -> None:
         '''
             short,long 分别表示短边、长边的格子数.
             squareLength,aruco_len 分别表示棋盘格的边长与aruco的边长.
@@ -167,16 +170,13 @@ class CharucoBoard:
         # ATTN: exchange the XY
         corners = corners[:, [1, 0, 2]]
         self.template = {
-            'keypoints3d': corners,
-            'keypoints2d': np.zeros_like(corners),
-            'pattern': (long-1, short-1),
-            'grid_size': squareLength,
-            'visted': False
+            'keypoints3d': corners, 'keypoints2d': np.zeros_like(corners), 'pattern':
+            (long - 1, short - 1), 'grid_size': squareLength, 'visted': False
         }
         print(corners.shape)
         self.dictionary = dictionary
         self.board = board
-    
+
     def detect(self, img_color, annots):
         # 查找标志块的左上角点
         corners, ids, _ = cv2.aruco.detectMarkers(
@@ -191,9 +191,7 @@ class CharucoBoard:
             retval = False
         if retval:
             # 绘制棋盘格黑白块内角点
-            cv2.aruco.drawDetectedCornersCharuco(
-                img_color, charucoCorners, charucoIds, [0, 0, 255]
-            )
+            cv2.aruco.drawDetectedCornersCharuco(img_color, charucoCorners, charucoIds, [0, 0, 255])
             if False:
                 cv2.aruco.drawDetectedMarkers(
                     image=img_color, corners=corners, ids=ids, borderColor=None
@@ -213,11 +211,12 @@ class CharucoBoard:
         else:
             # mywarn('Cannot find in {}'.format(imgname))
             pass
-        
+
     def __call__(self, imgname, images='images', output='output'):
-        import os
-        from .file_utils import read_json, save_json
         import copy
+        import os
+
+        from .file_utils import read_json, save_json
         img_color = cv2.imread(imgname)
         annotname = imgname.replace('images', 'chessboard').replace('.jpg', '.json')
         if os.path.exists(annotname):

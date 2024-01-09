@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 from torch import searchsorted
 
+
 def augment_z_vals(z_vals, perturb=1):
     # get intervals between samples
     mids = .5 * (z_vals[..., 1:] + z_vals[..., :-1])
@@ -19,14 +20,15 @@ def augment_z_vals(z_vals, perturb=1):
     z_vals = lower + (upper - lower) * perturb_rand
     return z_vals
 
+
 # Hierarchical sampling (section 5.2)
 def sample_pdf(bins, weights, N_samples, det=False):
     # Get pdf
-    weights = weights + 1e-5 # prevent nans
+    weights = weights + 1e-5    # prevent nans
     pdf = weights / torch.sum(weights, -1, keepdim=True)
     cdf = torch.cumsum(pdf, -1)
-    cdf = torch.cat([torch.zeros_like(cdf[...,:1]), cdf], -1)  # (batch, len(bins))
-    
+    cdf = torch.cat([torch.zeros_like(cdf[..., :1]), cdf], -1)    # (batch, len(bins))
+
     # Take uniform samples
     if det:
         u = torch.linspace(0., 1., steps=N_samples)
@@ -37,9 +39,9 @@ def sample_pdf(bins, weights, N_samples, det=False):
     # Invert CDF
     u = u.contiguous().to(cdf.device)
     inds = searchsorted(cdf, u, right=True)
-    below = torch.max(torch.zeros_like(inds-1), inds-1)
-    above = torch.min((cdf.shape[-1]-1) * torch.ones_like(inds), inds)
-    inds_g = torch.stack([below, above], -1)  # (batch, N_samples, 2)
+    below = torch.max(torch.zeros_like(inds - 1), inds - 1)
+    above = torch.min((cdf.shape[-1] - 1) * torch.ones_like(inds), inds)
+    inds_g = torch.stack([below, above], -1)    # (batch, N_samples, 2)
 
     # cdf_g = tf.gather(cdf, inds_g, axis=-1, batch_dims=len(inds_g.shape)-2)
     # bins_g = tf.gather(bins, inds_g, axis=-1, batch_dims=len(inds_g.shape)-2)
@@ -47,10 +49,10 @@ def sample_pdf(bins, weights, N_samples, det=False):
     cdf_g = torch.gather(cdf.unsqueeze(1).expand(matched_shape), 2, inds_g)
     bins_g = torch.gather(bins.unsqueeze(1).expand(matched_shape), 2, inds_g)
 
-    denom = (cdf_g[...,1]-cdf_g[...,0])
-    denom = torch.where(denom<1e-5, torch.ones_like(denom), denom)
-    t = (u-cdf_g[...,0])/denom
-    samples = bins_g[...,0] + t * (bins_g[...,1]-bins_g[...,0])
+    denom = (cdf_g[..., 1] - cdf_g[..., 0])
+    denom = torch.where(denom < 1e-5, torch.ones_like(denom), denom)
+    t = (u - cdf_g[..., 0]) / denom
+    samples = bins_g[..., 0] + t * (bins_g[..., 1] - bins_g[..., 0])
     if False:
         import matplotlib as mpl
         mpl.use('TkAgg')
@@ -63,12 +65,13 @@ def sample_pdf(bins, weights, N_samples, det=False):
         plt.vlines(samples[0].detach().cpu().numpy(), ymin=0, ymax=1, colors='r')
         plt.figure(2)
         plt.title('cdf')
-        plt.plot(cdf0.T)        
+        plt.plot(cdf0.T)
         plt.show()
-        import ipdb;ipdb.set_trace()
+        import ipdb
+        ipdb.set_trace()
     return samples
 
-    
+
 def get_near_far(ray_o, ray_d, bounds):
     """ get near and far
 
@@ -82,12 +85,12 @@ def get_near_far(ray_o, ray_d, bounds):
         这里的near是实际物理空间中的深度
     """
     norm_d = torch.norm(ray_d, dim=-1, keepdim=True)
-    viewdir = ray_d/norm_d
-    viewdir[(viewdir<1e-10)&(viewdir>-1e-10)] = 1e-10
-    viewdir[(viewdir>-1e-10)&(viewdir<1e-10)] = -1e-10
-    inv_dir = 1.0/viewdir
-    tmin = (bounds[:1] - ray_o[:1])*inv_dir
-    tmax = (bounds[1:2] - ray_o[:1])*inv_dir
+    viewdir = ray_d / norm_d
+    viewdir[(viewdir < 1e-10) & (viewdir > -1e-10)] = 1e-10
+    viewdir[(viewdir > -1e-10) & (viewdir < 1e-10)] = -1e-10
+    inv_dir = 1.0 / viewdir
+    tmin = (bounds[:1] - ray_o[:1]) * inv_dir
+    tmax = (bounds[1:2] - ray_o[:1]) * inv_dir
     # 限定时间是增加的
     t1 = torch.minimum(tmin, tmax)
     t2 = torch.maximum(tmin, tmax)
@@ -100,13 +103,15 @@ def get_near_far(ray_o, ray_d, bounds):
     #     print(pts.max(0)[0] - bounds[1])
     #     import ipdb;ipdb.set_trace()
     return near, far, mask_at_box
-    
+
+
 def get_near_far_RTBBox(ray_o, ray_d, bounds, R, T):
     # sample the near far in canonical coordinate
     ray_o_rt = (ray_o - T) @ R
     ray_d_rt = ray_d @ R
     near, far, mask_at_box = get_near_far(ray_o_rt, ray_d_rt, bounds)
     return near, far, mask_at_box
+
 
 def concat(retlist, dim=0, unsqueeze=True, mask=None):
     res = {}
@@ -123,6 +128,7 @@ def concat(retlist, dim=0, unsqueeze=True, mask=None):
         res[key] = val
     return res
 
+
 class Base(nn.Module):
     def __init__(self, sample_args) -> None:
         super().__init__()
@@ -132,11 +138,11 @@ class Base(nn.Module):
         self.sample_args = sample_args
         z_steps = torch.linspace(0, 1, self.N_samples).reshape(1, -1)
         self.register_buffer('z_steps', z_steps)
-    
+
     def model(self, key):
         self.current = key
         return self
-    
+
     def clear_cache(self):
         self.cache = {}
 
@@ -145,7 +151,10 @@ class Base(nn.Module):
             - neuralbody: encode sparse voxel
             - aninerf: encode blending weight
         """
-        datas = {key.replace(name+'_', ''):val for key,val in batch.items() if key.startswith(name)}
+        datas = {
+            key.replace(name + '_', ''): val
+            for key, val in batch.items() if key.startswith(name)
+        }
         return datas
 
     def calculate_density(self, wpts):
@@ -161,7 +170,7 @@ class Base(nn.Module):
             z_vals = augment_z_vals(z_vals)
         pts = ray_o + ray_d * z_vals
         return pts, z_vals
-    
+
     def sample_pdf(self, near, far, ray_o, ray_d, split):
         pts, z_vals = self.sample(near, far, ray_o, ray_d, self.z_steps, split)
         # forward
@@ -171,12 +180,13 @@ class Base(nn.Module):
         # resample
         alpha = raw_output['occupancy'][..., 0]
         weights = alpha * torch.cumprod(
-            torch.cat(
-                [torch.ones((alpha.shape[0], 1)).to(alpha), 1. - alpha + 1e-10],
-                -1), -1)[:, :-1]
-        z_vals_mid = .5 * (z_vals[...,1:, 0] + z_vals[...,:-1, 0])
+            torch.cat([torch.ones((alpha.shape[0], 1)).to(alpha), 1. - alpha + 1e-10], -1), -1
+        )[:, :-1]
+        z_vals_mid = .5 * (z_vals[..., 1:, 0] + z_vals[..., :-1, 0])
 
-        z_samples = sample_pdf(z_vals_mid, weights[:, 1:-1], self.sample_args.N_importance, det=(split!='train'))
+        z_samples = sample_pdf(
+            z_vals_mid, weights[:, 1:-1], self.sample_args.N_importance, det=(split != 'train')
+        )
         z_samples = z_samples.detach()
         if split == 'train':
             z_vals, _ = torch.sort(torch.cat([z_vals, z_samples[..., None]], -2), -2)
@@ -187,14 +197,15 @@ class Base(nn.Module):
 
     def calculate_density_color(self, wpts, viewdir):
         raise NotImplementedError
-    
+
     def calculate_density_color_from_ray(self, ray_o, ray_d, near, far, split):
         if self.sample_method == 'uniform':
             pts, z_vals = self.sample(near, far, ray_o, ray_d, self.z_steps, split)
         elif self.sample_method == 'importance':
             pts, z_vals = self.sample_pdf(near, far, ray_o, ray_d, split)
         elif self.sample_method == 'raymarching':
-            import ipdb;ipdb.set_trace()
+            import ipdb
+            ipdb.set_trace()
         else:
             print('Please check the sample :', self.sample_method)
             raise NotImplementedError

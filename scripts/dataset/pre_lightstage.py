@@ -1,18 +1,21 @@
-import re
-import numpy as np
-import os, sys
-import cv2
-import shutil
-from os.path import join
-from tqdm import trange, tqdm
-from multiprocessing import Pool
 import json
+import os
+import re
+import shutil
+import sys
+from os.path import join
+
+import cv2
+import numpy as np
+from tqdm import tqdm
+
 
 def save_json(file, data):
     if not os.path.exists(os.path.dirname(file)):
         os.makedirs(os.path.dirname(file))
     with open(file, 'w') as f:
         json.dump(data, f, indent=4)
+
 
 def parseImg(imgname):
     """ 解析图像名称
@@ -25,7 +28,8 @@ def parseImg(imgname):
     """
     s = re.search(
         '(?P<id>\d+)_(?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2})_(?P<hour>\d{2})-(?P<min>\d{2})-(?P<sec>\d{2})\.(?P<ms>\d{3})',
-        imgname)
+        imgname
+    )
     assert s is not None, imgname
     dic = s.groupdict()
     for key in dic.keys():
@@ -146,6 +150,7 @@ def get_filelists(path, save_path):
                 img = cv2.resize(img, (1024, 1024), cv2.INTER_NEAREST)
             cv2.imwrite(dst, img)
 
+
 def getFileDict(path):
     cams = sorted(os.listdir(path))
     cams = [cam for cam in cams if os.path.isdir(join(path, cam))]
@@ -161,6 +166,7 @@ def getFileDict(path):
         files = [f for f in files if f.endswith('.jpg')]
         results[cam] = files
     return cams, results
+
 
 def sync_by_name(imagelists, times_all, cams):
     # 选择开始帧
@@ -181,8 +187,8 @@ def sync_by_name(imagelists, times_all, cams):
         for c in cams:
             dist = np.abs(times_all[c] - ref_time).min()
             distances.append(dist)
-        print('{:10s}: {:.2f}'.format(cam, sum(distances)/len(cams)))
-        best_distances.append(sum(distances)/len(cams))
+        print('{:10s}: {:.2f}'.format(cam, sum(distances) / len(cams)))
+        best_distances.append(sum(distances) / len(cams))
     best_distances = np.array(best_distances)
     ref_view = best_distances.argmin()
     if args.ref is None:
@@ -195,13 +201,15 @@ def sync_by_name(imagelists, times_all, cams):
     print('Select reference view: ', cams[ref_view])
     if False:
         distance = np.eye((dimGroups[-1]))
-        for nv0 in range(len(times_all)-1):
-            for nv1 in range(nv0+1, len(times_all)):
+        for nv0 in range(len(times_all) - 1):
+            for nv1 in range(nv0 + 1, len(times_all)):
                 dist = np.abs(times_all[nv0][:, None] - times_all[nv1][None, :])
-                dist = (MAX_DIST - dist)/MAX_DIST
-                dist[dist<0] = 0
-                distance[dimGroups[nv0]:dimGroups[nv0+1], dimGroups[nv1]:dimGroups[nv1+1]] = dist
-                distance[dimGroups[nv1]:dimGroups[nv1+1], dimGroups[nv0]:dimGroups[nv0+1]] = dist.T
+                dist = (MAX_DIST - dist) / MAX_DIST
+                dist[dist < 0] = 0
+                distance[dimGroups[nv0]:dimGroups[nv0 + 1],
+                         dimGroups[nv1]:dimGroups[nv1 + 1]] = dist
+                distance[dimGroups[nv1]:dimGroups[nv1 + 1],
+                         dimGroups[nv0]:dimGroups[nv0 + 1]] = dist.T
         matched, ref_view = match_dtw(distance, dimGroups, debug=args.debug)
     elif True:
         # 使用最近邻选择
@@ -213,13 +221,13 @@ def sync_by_name(imagelists, times_all, cams):
             # 直接选择最近的吧
             # 去掉开头
             for i in range(argmin0.shape[0]):
-                if argmin0[i] == argmin0[i+1]:
+                if argmin0[i] == argmin0[i + 1]:
                     argmin0[i] = -1
                 else:
                     break
             # 去掉结尾
             for i in range(1, argmin0.shape[0]):
-                if argmin0[-i] == argmin0[-i-1]:
+                if argmin0[-i] == argmin0[-i - 1]:
                     argmin0[-i] = -1
                 else:
                     break
@@ -229,11 +237,9 @@ def sync_by_name(imagelists, times_all, cams):
         # 1. 首先判断一下所有视角的最接近的点
         nViews = len(times_all)
         TIME_STEP = 20
-        REF_OFFSET = 20 # 给参考视角增加一个帧的偏移，保证所有相机都正常开启了，同时增加一个帧的结束，保证所有相机都结束了
+        REF_OFFSET = 20    # 给参考视角增加一个帧的偏移，保证所有相机都正常开启了，同时增加一个帧的结束，保证所有相机都结束了
         views_ref = [ref_view]
-        matched = {
-            ref_view:np.arange(REF_OFFSET, times_all[ref_view].shape[0]-REF_OFFSET)
-        }
+        matched = {ref_view: np.arange(REF_OFFSET, times_all[ref_view].shape[0] - REF_OFFSET)}
         while True:
             times_mean = np.stack([times_all[ref][matched[ref]] for ref in matched.keys()])
             times_mean = np.mean(times_mean, axis=0)
@@ -245,7 +251,7 @@ def sync_by_name(imagelists, times_all, cams):
                     dist_all = []
                     for ref, indices in matched.items():
                         dist = np.abs(times_all[ref][indices, None] - times_all[nv][None, :])
-                        dist[dist>TIME_STEP] = 10*TIME_STEP
+                        dist[dist > TIME_STEP] = 10 * TIME_STEP
                         dist_all.append(dist)
                     dist = np.stack(dist_all).sum(axis=0)
                     dist = dist / len(matched.keys())
@@ -254,15 +260,11 @@ def sync_by_name(imagelists, times_all, cams):
                 argmin0 = dist.argmin(axis=1)
                 rows = np.arange(dist.shape[0])
                 dist_sum = dist.min(axis=1).mean()
-                infos.append({
-                    'v': nv,
-                    'dist_sum': dist_sum,
-                    'argmin': argmin0
-                })
+                infos.append({'v': nv, 'dist_sum': dist_sum, 'argmin': argmin0})
                 print(nv, dist_sum)
             if len(infos) == 0:
                 break
-            infos.sort(key=lambda x:x['dist_sum'])
+            infos.sort(key=lambda x: x['dist_sum'])
             print('Select view: ', infos[0]['v'], infos[0]['dist_sum'])
             matched[infos[0]['v']] = infos[0]['argmin']
         matched = np.stack([matched[nv] for nv in range(nViews)])
@@ -273,9 +275,9 @@ def sync_by_name(imagelists, times_all, cams):
         nViews = len(times_all)
         start_t = max([t[0] for t in times_all])
         # 留出10帧来操作
-        start_f = [np.where(t>start_t)[0][0] + 10 for t in times_all]
+        start_f = [np.where(t > start_t)[0][0] + 10 for t in times_all]
         start_t = times_all[ref_view][start_f[ref_view]]
-        valid_f = [[np.where(t<start_t)[0][-1],np.where(t>=start_t)[0][0]] for t in times_all]
+        valid_f = [[np.where(t < start_t)[0][-1], np.where(t >= start_t)[0][0]] for t in times_all]
         from copy import deepcopy
         valid_f_copy = deepcopy(valid_f)
         import matplotlib as mpl
@@ -290,17 +292,11 @@ def sync_by_name(imagelists, times_all, cams):
                 if len(valid_f[nv]) == 1:
                     continue
                 # 存在多个的
-                min_info.append({
-                    'v': nv,
-                    't': times_all[nv][valid_f[nv][0]]
-                })
-                max_info.append({
-                    'v': nv,
-                    't': times_all[nv][valid_f[nv][-1]]
-                })
+                min_info.append({'v': nv, 't': times_all[nv][valid_f[nv][0]]})
+                max_info.append({'v': nv, 't': times_all[nv][valid_f[nv][-1]]})
             # 判断最小和最大的弹出谁
-            min_info.sort(key=lambda x:x['t'])
-            max_info.sort(key=lambda x:-x['t'])
+            min_info.sort(key=lambda x: x['t'])
+            max_info.sort(key=lambda x: -x['t'])
             if len(min_info) > 1 and len(max_info) > 1:
                 # delta_min = min_info[1]['t'] - min_info[0]['t']
                 # delta_max = max_info[0]['t'] - max_info[1]['t']
@@ -338,9 +334,9 @@ def sync_by_name(imagelists, times_all, cams):
         start = np.array(valid_f).reshape(-1, 1)
         matched += start
         shape = np.array([t.shape[0] for t in times_all]).reshape(-1, 1) - 10
-        matched[matched<0] = -1
+        matched[matched < 0] = -1
         # matched[matched>shape] = -1
-    matched = matched[:, (matched!=-1).all(axis=0)]
+    matched = matched[:, (matched != -1).all(axis=0)]
     matched_time = np.zeros_like(matched)
     for nv in range(matched.shape[0]):
         matched_time[nv] = times_all[nv][matched[nv]]
@@ -348,24 +344,38 @@ def sync_by_name(imagelists, times_all, cams):
     min_time = matched_time.min(axis=0)
     diff = max_time - min_time
     step = matched_time[:, 1:] - matched_time[:, :-1]
-    headers = ['camera', 'start', 'end', 'delta_mean', 'delta_min', 'delta_max', 'diff_max', 'diff_min', 'diff_mean']
+    headers = [
+        'camera', 'start', 'end', 'delta_mean', 'delta_min', 'delta_max', 'diff_max', 'diff_min',
+        'diff_mean'
+    ]
     infos = []
     dist_to_ref_all = 0
     for nv, cam in enumerate(cams):
         dist_to_ref = (matched_time[nv] - matched_time[ref_view]).tolist()
         dist_to_ref_all += np.abs(dist_to_ref).mean()
         dist_to_ref.sort(key=lambda x: abs(x))
-        infos.append([cam, matched_time[nv, 0], matched_time[nv, -1], step[nv].mean(), step[nv].min(), step[nv].max(), dist_to_ref[-1], dist_to_ref[0], np.abs(np.array(dist_to_ref)).mean()])
+        infos.append([
+            cam, matched_time[nv, 0], matched_time[nv, -1], step[nv].mean(), step[nv].min(),
+            step[nv].max(), dist_to_ref[-1], dist_to_ref[0],
+            np.abs(np.array(dist_to_ref)).mean()
+        ])
     print(tabulate(infos, headers=headers))
     # import matplotlib.pyplot as plt
     # plt.plot(times_all[7][:100])
     # plt.plot(times_all[ref_view][:100])
     # plt.show()
     # import ipdb;ipdb.set_trace()
-    print("Max sync difference = {}ms, Mean max sync difference = {:.1f}ms".format(diff.max(), diff.mean()))
-    print("Mean sync diff : {}".format(dist_to_ref_all/len(cams)))
-    if not args.nocheck: import ipdb;ipdb.set_trace()
+    print(
+        "Max sync difference = {}ms, Mean max sync difference = {:.1f}ms".format(
+            diff.max(), diff.mean()
+        )
+    )
+    print("Mean sync diff : {}".format(dist_to_ref_all / len(cams)))
+    if not args.nocheck:
+        import ipdb
+        ipdb.set_trace()
     return matched, matched_time
+
 
 def copy_func(src, dst):
     if args.keep2048:
@@ -376,23 +386,28 @@ def copy_func(src, dst):
         if colors_params is not None:
             sub = os.path.basename(os.path.dirname(dst))
             M = colors_params[sub]
-            img = (np.clip((img.astype(np.float32)/255.) @ M, 0., 1.) * 255).astype(np.uint8)
+            img = (np.clip((img.astype(np.float32) / 255.) @ M, 0., 1.) * 255).astype(np.uint8)
         cv2.imwrite(dst, img)
 
+
 def copy_func_batch(src: list, dst: list):
-    assert(len(src) == len(dst))
+    assert (len(src) == len(dst))
     for i in tqdm(range(len(src))):
         copy_func(src[i], dst[i])
 
+
 THREAD_CNT = 8
 
-def copy_with_match(path, out, matched, imagelists, cams, multiple_thread = False):
+
+def copy_with_match(path, out, matched, imagelists, cams, multiple_thread=False):
     print('---')
     print('Copy {} to {}'.format(path, out))
     print('---')
-    pad_2 = lambda x:'{:02d}'.format(int(x))
-    remove_cam = lambda x:x.replace('Camera_B', '').replace('Camera_', '').replace('Camera (', '').replace(')', '')
-    cvt_viewname = lambda x:pad_2(remove_cam(x))
+    pad_2 = lambda x: '{:02d}'.format(int(x))
+    remove_cam = lambda x: x.replace('Camera_B', '').replace('Camera_', '').replace(
+        'Camera (', ''
+    ).replace(')', '')
+    cvt_viewname = lambda x: pad_2(remove_cam(x))
 
     reports = [[] for _ in range(matched.shape[1])]
     for nv in tqdm(range(matched.shape[0])):
@@ -417,7 +432,9 @@ def copy_with_match(path, out, matched, imagelists, cams, multiple_thread = Fals
             import threading
             threads = []
             for i in range(THREAD_CNT):
-                thread = threading.Thread(target=copy_func_batch, args=(imgname_old_s[i], imgname_new_s[i])) # 应该不存在任何数据竞争
+                thread = threading.Thread(
+                    target=copy_func_batch, args=(imgname_old_s[i], imgname_new_s[i])
+                )    # 应该不存在任何数据竞争
                 thread.start()
                 threads.append(thread)
             for thread in threads:
@@ -430,7 +447,10 @@ def copy_with_match(path, out, matched, imagelists, cams, multiple_thread = Fals
                 copy_func(imgname_old, imgname_new)
     save_json(join(out, 'match_name.json'), reports)
 
+
 from tabulate import tabulate
+
+
 def parse_time(imagelists, cams):
     times_all = {}
     headers = ['camera', 'frames', 'mean', 'min', 'max', 'number>mean', 'start', 'end']
@@ -453,17 +473,18 @@ def parse_time(imagelists, cams):
         times = times_all[cam]
         times -= start_time
         delta = times[1:] - times[:-1]
-        infos.append([cam, times.shape[0], 
+        infos.append([
+            cam, times.shape[0],
             delta.mean(),
-            '{}/{}'.format(delta.min(), delta.argmin()), 
-            '{}/{}'.format(delta.max(), delta.argmax()), 
-            (delta>delta.mean()).sum(), 
-            times[0]%60000,
-            times[-1]%60000])
+            '{}/{}'.format(delta.min(),
+                           delta.argmin()), '{}/{}'.format(delta.max(), delta.argmax()),
+            (delta > delta.mean()).sum(), times[0] % 60000, times[-1] % 60000
+        ])
     print(tabulate(infos, headers=headers))
     return times_all
 
-def soft_sync(path, out, multiple_thread = False):
+
+def soft_sync(path, out, multiple_thread=False):
     os.makedirs(out, exist_ok=True)
     # 获取图像名称
     cams, imagelists = getFileDict(path)
@@ -480,20 +501,23 @@ def soft_sync(path, out, multiple_thread = False):
         times_all = parse_time(imagelists, cams)
         matched, matched_time = sync_by_name(imagelists, times_all, cams)
         matched = matched[:, ::args.step]
-        times_all = {key:val.tolist() for key, val in times_all.items()}
+        times_all = {key: val.tolist() for key, val in times_all.items()}
         save_json(join(out, 'timestamp.json'), times_all)
-        np.savetxt(join(out, 'sync_time.txt'), matched_time-matched_time.min(), fmt='%10d')
+        np.savetxt(join(out, 'sync_time.txt'), matched_time - matched_time.min(), fmt='%10d')
         # 保存图像
     copy_with_match(path, out, matched, imagelists, cams, multiple_thread)
+
 
 def read_json(path):
     with open(path) as f:
         data = json.load(f)
     return data
 
+
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(usage='''
+    parser = argparse.ArgumentParser(
+        usage='''
     origin=/path/to/CoreView_xxx
     data=/path/to/output/xxx
     - convert data: python3 scripts/dataset/pre_lightstage.py ${origin} ${data} --mp --ref_min
@@ -501,7 +525,8 @@ if __name__ == "__main__":
     - only copy one frame: --static
     - set the color adjustment: --color /path/to/color
     - skip the check: --nocheck
-''')
+'''
+    )
     parser.add_argument('path', type=str)
     parser.add_argument('out', type=str)
     parser.add_argument('--filter', type=str, nargs='+', default=[])
@@ -542,11 +567,12 @@ if __name__ == "__main__":
         import matplotlib.pyplot as plt
         for nv in range(timestamp.shape[0]):
             plt.plot(t, timestamp[nv])
-        for nf in range(timestamp.shape[1]-1):
-            plt.plot([nf, nf+1], [timestamp[:, nf].mean(), timestamp[:, nf].mean()], c='k')
-            plt.plot([nf, nf+1], [timestamp[:, nf].min(), timestamp[:, nf].min()], c='r')
-            plt.plot([nf, nf+1], [timestamp[:, nf].max(), timestamp[:, nf].max()], c='g')
+        for nf in range(timestamp.shape[1] - 1):
+            plt.plot([nf, nf + 1], [timestamp[:, nf].mean(), timestamp[:, nf].mean()], c='k')
+            plt.plot([nf, nf + 1], [timestamp[:, nf].min(), timestamp[:, nf].min()], c='r')
+            plt.plot([nf, nf + 1], [timestamp[:, nf].max(), timestamp[:, nf].max()], c='g')
         plt.show()
-        import ipdb; ipdb.set_trace()
+        import ipdb
+        ipdb.set_trace()
     else:
-        soft_sync(args.path, args.out, multiple_thread = args.mp)
+        soft_sync(args.path, args.out, multiple_thread=args.mp)

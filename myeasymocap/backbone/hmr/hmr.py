@@ -1,9 +1,11 @@
 import os
+
 import numpy as np
 import torch
+
 from ..basetopdown import BaseTopDownModelCache, gdown_models
-import pickle
 from .models import hmr
+
 
 class MyHMR(BaseTopDownModelCache):
     def __init__(self, ckpt, url=None):

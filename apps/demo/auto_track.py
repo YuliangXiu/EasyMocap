@@ -16,11 +16,7 @@ if __name__ == "__main__":
     parser.add_argument('--debug', action='store_true')
     args = parser.parse_args()
     cfg = {
-        'path': args.path,
-        'out': args.out,
-        'WINDOW_SIZE': 10,
-        'MIN_FRAMES': 10,
-        'SMOOTH_SIZE': 5
+        'path': args.path, 'out': args.out, 'WINDOW_SIZE': 10, 'MIN_FRAMES': 10, 'SMOOTH_SIZE': 5
     }
     if args.track3d:
         tracker = Track3D(with2d=False, **cfg)

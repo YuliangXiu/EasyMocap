@@ -1,12 +1,16 @@
 import numpy as np
+
 from easymocap.dataset.mirror import flipPoint2D
 
 CONF_VANISHING_ANNOT = 2.
+
+
 def clear_vanish_points(self, param):
     "remove all vanishing points"
     annots = param['annots']
     annots['vanish_line'] = [[], [], []]
     annots['vanish_point'] = [[], [], []]
+
 
 def clear_body_points(self, param):
     "remove vanish lines of body"
@@ -50,14 +54,16 @@ def calc_vanishpoint(keypoints2d, thres=0.3):
     result[1] = avgInsec[1, 0]
     result[2] = conf
     return result
-    
+
+
 def update_vanish_points(lines):
     vline0 = np.array(lines).transpose(1, 0, 2)
     # vline0 = np.dstack((vline0, np.ones((vline0.shape[0], vline0.shape[1], 1))))
     dim1points = vline0.copy()
     points = calc_vanishpoint(dim1points)
     return points.tolist()
-    
+
+
 def get_record_vanish_lines(index):
     def record_vanish_lines(self, param, **kwargs):
         "record vanish lines, X: mirror edge, Y: into mirror, Z: Up"
@@ -68,7 +74,8 @@ def get_record_vanish_lines(index):
             annots['vanish_point'] = [[], [], []]
         start, end = param['start'], param['end']
         if start is not None and end is not None:
-            annots['vanish_line'][index].append([[start[0], start[1], CONF_VANISHING_ANNOT], [end[0], end[1], CONF_VANISHING_ANNOT]])
+            annots['vanish_line'][index].append([[start[0], start[1], CONF_VANISHING_ANNOT],
+                                                 [end[0], end[1], CONF_VANISHING_ANNOT]])
             # 更新vanish point
             param['start'] = None
             param['end'] = None
@@ -78,10 +85,12 @@ def get_record_vanish_lines(index):
                     val[0].append(CONF_VANISHING_ANNOT)
                     val[1].append(CONF_VANISHING_ANNOT)
             annots['vanish_point'][index] = update_vanish_points(annots['vanish_line'][index])
+
     func = record_vanish_lines
     text = ['parallel to mirror edges', 'vertical to mirror', 'vertical to ground']
     func.__doc__ = 'vanish line of ' + text[index]
     return record_vanish_lines
+
 
 def vanish_point_from_body(self, param, **kwargs):
     "calculating the vanish point from human keypoints"
@@ -92,7 +101,7 @@ def vanish_point_from_body(self, param, **kwargs):
     assert len(bodies) == 2, 'Please make sure that there are only two bboxes!'
     kpts0 = np.array(bodies[0]['keypoints'])
     kpts1 = flipPoint2D(np.array(bodies[1]['keypoints']))
-    vanish_line = annots['vanish_line'][1] # the y-dim
+    vanish_line = annots['vanish_line'][1]    # the y-dim
     MIN_CONF = 0.5
     for i in range(15):
         conf = min(kpts0[i, -1], kpts1[i, -1])
@@ -100,6 +109,7 @@ def vanish_point_from_body(self, param, **kwargs):
             vanish_line.append([[kpts0[i, 0], kpts0[i, 1], conf], [kpts1[i, 0], kpts1[i, 1], conf]])
     if len(vanish_line) > 1:
         annots['vanish_point'][1] = update_vanish_points(vanish_line)
+
 
 def copy_edges(self, param, **kwargs):
     "copy the static edges from previous frame"
@@ -119,6 +129,7 @@ def copy_edges(self, param, **kwargs):
         if len(vanish_lines[i]) > 1:
             annots['vanish_point'][i] = update_vanish_points(vanish_lines[i])
 
+
 def get_calc_intrinsic(mode='xy'):
     def calc_intrinsic(self, param, **kwargs):
         "calculating intrinsic matrix according to vanish points"
@@ -130,7 +141,8 @@ def get_calc_intrinsic(mode='xy'):
             point0 = annots['vanish_point'][1]
             point1 = annots['vanish_point'][2]
         else:
-            import ipdb; ipdb.set_trace()
+            import ipdb
+            ipdb.set_trace()
         if len(point0) < 1 or len(point1) < 1:
             return 0
         vanish_point = np.stack([np.array(point0), np.array(point1)])
@@ -138,18 +150,21 @@ def get_calc_intrinsic(mode='xy'):
         H = annots['height']
         W = annots['width']
         K = np.eye(3)
-        K[0, 2] = W/2
-        K[1, 2] = H/2
+        K[0, 2] = W / 2
+        K[1, 2] = H / 2
         print(vanish_point)
-        vanish_point[:, 0] -= W/2
-        vanish_point[:, 1] -= H/2
+        vanish_point[:, 0] -= W / 2
+        vanish_point[:, 1] -= H / 2
         print(vanish_point)
-        focal = np.sqrt(-(vanish_point[0][0]*vanish_point[1][0] + vanish_point[0][1]*vanish_point[1][1]))
-        
+        focal = np.sqrt(
+            -(vanish_point[0][0] * vanish_point[1][0] + vanish_point[0][1] * vanish_point[1][1])
+        )
+
         K[0, 0] = focal
         K[1, 1] = focal
         annots['K'] = K.tolist()
         print('>>> estimated K: ')
         print(K)
+
     calc_intrinsic.__doc__ = 'calculate K with {}'.format(mode)
     return calc_intrinsic

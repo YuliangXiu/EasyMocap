@@ -1,6 +1,7 @@
 from typing import Any
-import numpy as np
+
 import cv2
+import numpy as np
 
 LOG_FILE = 'log_hand_select.txt'
 LOG_LEVEL = 2 #0 2

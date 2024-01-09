@@ -1,6 +1,7 @@
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
+
 
 class GMoF(nn.Module):
     def __init__(self, rho=1):
@@ -154,6 +155,7 @@ class Smooth(BaseLoss):
     
     def convert_Rh_to_R(self, Rh):
         from ..bodymodels.geometry import batch_rodrigues
+
         # Rh: (..., nRot x 3)
         nRot = Rh.shape[-1] // 3
         Rh_flat = Rh.reshape(-1, nRot, 3)
@@ -225,6 +227,8 @@ class Init(BaseLoss):
         return ret
 
 from easymocap.multistage.lossbase import AnyReg
+
+
 class RegLoss(AnyReg):
     def __init__(self, key, norm) -> None:
         super().__init__(key, norm)

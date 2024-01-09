@@ -5,17 +5,21 @@
   @ LastEditTime: 2022-10-21 16:55:26
   @ FilePath: /EasyMocapPublic/easymocap/annotator/file_utils.py
 '''
-import os
 import json
-import numpy as np
-from os.path import join
+import os
 import shutil
+from os.path import join
+
+import numpy as np
+
 from ..mytools.file_utils import myarray2string
+
 
 def read_json(path):
     with open(path, 'r') as f:
         data = json.load(f)
     return data
+
 
 def save_json(file, data):
     if file is None:
@@ -25,7 +29,9 @@ def save_json(file, data):
     with open(file, 'w') as f:
         json.dump(data, f, indent=4)
 
+
 tobool = lambda x: 'true' if x else 'false'
+
 
 def annot2string(data):
     out_text = []
@@ -51,7 +57,7 @@ def annot2string(data):
                 res = '"{}": {},'.format(key, myarray2string(value, indent=0))
             else:
                 res = '"{}": {},'.format(key, value)
-            out_text.append(indent * ' ' + res+'\n')
+            out_text.append(indent * ' ' + res + '\n')
         else:
             out_text.append(indent * ' ' + '"annots": [\n')
             for n, annot in enumerate(value):
@@ -68,14 +74,16 @@ def annot2string(data):
                 for bkey in ['bbox', 'bbox_handl2d', 'bbox_handr2d', 'bbox_face2d']:
                     if bkey not in annot.keys():
                         continue
-                    bbox = ind + '"{}": [{:.2f}, {:.2f}, {:.2f}, {:.2f}, {:.2f}],\n'.format(bkey, *annot[bkey][:5])
+                    bbox = ind + '"{}": [{:.2f}, {:.2f}, {:.2f}, {:.2f}, {:.2f}],\n'.format(
+                        bkey, *annot[bkey][:5]
+                    )
                     out_text.append(bbox)
                 for bkey in ['keypoints', 'handl2d', 'handr2d', 'face2d', 'keypoints3d']:
                     if bkey not in annot.keys():
                         continue
                     val = np.array(annot[bkey])
                     conf = val[:, -1]
-                    conf[conf<0] = 0
+                    conf[conf < 0] = 0
                     ret = myarray2string(val, fmt='%7.2f', indent=12)
                     kpts = ind + '"{}": '.format(bkey) + ret + ',\n'
                     out_text.append(kpts)
@@ -84,8 +92,8 @@ def annot2string(data):
                     keys = list(annot['params'].keys())
                     for vkey, val in annot['params'].items():
                         val = np.array(val)
-                        ret = myarray2string(val, fmt='%7.2f', indent=4*4)
-                        kpts = ind + 4*' ' + '"{}": '.format(vkey) + ret
+                        ret = myarray2string(val, fmt='%7.2f', indent=4 * 4)
+                        kpts = ind + 4 * ' ' + '"{}": '.format(vkey) + ret
                         if vkey == keys[-1]:
                             kpts += '\n'
                         else:
@@ -106,6 +114,7 @@ def annot2string(data):
     out_text = ''.join(out_text)
     return out_text
 
+
 def save_annot(file, data):
     if file is None:
         return 0
@@ -119,12 +128,14 @@ def save_annot(file, data):
     out_text = annot2string(data)
     print(out_text, file=open(file, 'w'))
 
+
 def getFileList(root, ext='.jpg', max=-1, ret_full=False):
     files = []
     dirs = sorted(os.listdir(root))
     while len(dirs) > 0:
         path = dirs.pop()
-        if path.startswith('.'):continue
+        if path.startswith('.'):
+            continue
         fullname = join(root, path)
         if os.path.isfile(fullname) and fullname.endswith(ext):
             if ret_full:
@@ -140,6 +151,7 @@ def getFileList(root, ext='.jpg', max=-1, ret_full=False):
                 dirs.append(newDir)
     files = sorted(files)
     return files
+
 
 def load_annot_to_tmp(annotname):
     if annotname is None:

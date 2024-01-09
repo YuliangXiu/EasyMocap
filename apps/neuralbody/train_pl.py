@@ -1,17 +1,20 @@
 # Training code based on PyTorch-Lightning
 import os
-from os.path import join
-
-from easymocap.mytools.debug_utils import myerror
-import torch
-from easymocap.config import load_object, Config
-import pytorch_lightning as pl
-from pytorch_lightning.loggers import TensorBoardLogger
-from pytorch_lightning import seed_everything
 # https://github.com/Project-MONAI/MONAI/issues/701
 import resource
+from os.path import join
+
+import pytorch_lightning as pl
+import torch
+from pytorch_lightning import seed_everything
+from pytorch_lightning.loggers import TensorBoardLogger
+
+from easymocap.config import Config, load_object
+from easymocap.mytools.debug_utils import myerror
+
 rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
+
 
 class plwrapper(pl.LightningModule):
     def __init__(self, cfg, mode='train'):
@@ -27,12 +30,12 @@ class plwrapper(pl.LightningModule):
         # self.val_dataset = load_object(cfg.data_val_module, cfg.data_val_args)
         else:
             if mode + '_renderer_module' in cfg.keys():
-                module, args = cfg[mode+'_renderer_module'], cfg[mode+'_renderer_args']
+                module, args = cfg[mode + '_renderer_module'], cfg[mode + '_renderer_args']
             else:
                 module, args = cfg.renderer_module, cfg.renderer_args
             self.test_renderer = load_object(module, args, net=self.network)
         if mode + '_visualizer_module' in cfg.keys():
-            module, args = cfg[mode+'_visualizer_module'], cfg[mode+'_visualizer_args']
+            module, args = cfg[mode + '_visualizer_module'], cfg[mode + '_visualizer_args']
         else:
             module, args = cfg.visualizer_module, cfg.visualizer_args
         self.visualizer = load_object(module, args)
@@ -56,7 +59,12 @@ class plwrapper(pl.LightningModule):
         return loss
 
     def train_dataloader(self):
-        from easymocap.neuralbody.trainer.dataloader import make_data_sampler, make_batch_data_sampler, make_collator, worker_init_fn
+        from easymocap.neuralbody.trainer.dataloader import (
+            make_batch_data_sampler,
+            make_collator,
+            make_data_sampler,
+            worker_init_fn,
+        )
         shuffle = True
         is_distributed = len(cfg.gpus) > 1
         is_train = True
@@ -65,27 +73,31 @@ class plwrapper(pl.LightningModule):
         drop_last = False
         max_iter = cfg.train.ep_iter
 
-        self.batch_sampler = make_batch_data_sampler(cfg, sampler, batch_size,
-                                            drop_last, max_iter, is_train)
+        self.batch_sampler = make_batch_data_sampler(
+            cfg, sampler, batch_size, drop_last, max_iter, is_train
+        )
         num_workers = cfg.train.num_workers
         collator = make_collator(cfg, is_train)
-        data_loader = torch.utils.data.DataLoader(self.train_dataset,
-                                              batch_sampler=self.batch_sampler,
-                                              num_workers=num_workers,
-                                              collate_fn=collator,
-                                              worker_init_fn=worker_init_fn)
+        data_loader = torch.utils.data.DataLoader(
+            self.train_dataset,
+            batch_sampler=self.batch_sampler,
+            num_workers=num_workers,
+            collate_fn=collator,
+            worker_init_fn=worker_init_fn
+        )
         return data_loader
 
     def configure_optimizers(self):
+        from easymocap.neuralbody.trainer.lr_sheduler import Scheduler
         from easymocap.neuralbody.trainer.optimizer import Optimizer
-        from easymocap.neuralbody.trainer.lr_sheduler import Scheduler, set_lr_scheduler
         optimizer = Optimizer(self.network, cfg.optimizer)
         scheduler = Scheduler(cfg.scheduler, optimizer)
         return [optimizer], [scheduler]
-    
+
     def on_train_epoch_end(self):
         if len(cfg.gpus) > 1:
             self.batch_sampler.sampler.set_epoch(self.current_epoch)
+
 
 def train(cfg):
     model = plwrapper(cfg)
@@ -106,26 +118,28 @@ def train(cfg):
         save_last=True,
         save_top_k=-1,
         monitor='loss',
-        filename="{epoch}")
+        filename="{epoch}"
+    )
     # Log true learning rate, serves as LR-Scheduler callback
     lr_monitor = pl.callbacks.LearningRateMonitor(logging_interval='step')
     extra_args = {
-        # 'num_nodes': len(cfg.gpus),
-        'accelerator': 'gpu', 
+    # 'num_nodes': len(cfg.gpus),
+        'accelerator': 'gpu',
     }
     if len(cfg.gpus) > 0:
         extra_args['strategy'] = 'ddp'
         extra_args['replace_sampler_ddp'] = False
     trainer = pl.Trainer(
-        gpus=len(cfg.gpus), 
+        gpus=len(cfg.gpus),
         logger=logger,
         resume_from_checkpoint=resume_from_checkpoint,
         callbacks=[ckpt_callback, lr_monitor],
         max_epochs=cfg.train.epoch,
-        # profiler='simple',
+    # profiler='simple',
         **extra_args
     )
     trainer.fit(model)
+
 
 def load_ckpt(model, ckpt_path, model_name='network'):
     print('Load from {}'.format(ckpt_path))
@@ -137,7 +151,7 @@ def load_ckpt(model, ckpt_path, model_name='network'):
     for k, v in checkpoint.items():
         if not k.startswith(model_name):
             continue
-        k = k[len(model_name)+1:]
+        k = k[len(model_name) + 1:]
         for prefix in []:
             if k.startswith(prefix):
                 break
@@ -146,10 +160,9 @@ def load_ckpt(model, ckpt_path, model_name='network'):
     model.load_state_dict(checkpoint_, strict=False)
     return epoch
 
+
 def test(cfg):
-    from glob import glob
     from os.path import join
-    from tqdm import tqdm
     model = plwrapper(cfg, mode=cfg.split)
 
     ckptpath = join(cfg.trained_model_dir, 'last.ckpt')
@@ -169,7 +182,9 @@ def test(cfg):
     if cfg.split == 'test' or cfg.split == 'eval':
         dataset = load_object(cfg.data_val_module, cfg.data_val_args)
     elif cfg.split in ['demo', 'canonical', 'novelposes']:
-        dataset = load_object(cfg['data_{}_module'.format(cfg.split)], cfg['data_{}_args'.format(cfg.split)])
+        dataset = load_object(
+            cfg['data_{}_module'.format(cfg.split)], cfg['data_{}_args'.format(cfg.split)]
+        )
     elif cfg.split == 'trainvis':
         dataset = model.train_dataset
         dataset.sample_args.nrays *= 16
@@ -177,21 +192,19 @@ def test(cfg):
     if ranges[1] == -1:
         ranges[1] = len(dataset)
 
-    dataloader = torch.utils.data.DataLoader(dataset, 
-        batch_size=1, num_workers=cfg.test.num_workers)
-    
+    dataloader = torch.utils.data.DataLoader(
+        dataset, batch_size=1, num_workers=cfg.test.num_workers
+    )
+
     extra_args = {
-        'accelerator': 'gpu', 
+        'accelerator': 'gpu',
     }
     if len(cfg.gpus) > 1:
         extra_args['strategy'] = 'ddp'
 
-    trainer = pl.Trainer(
-        gpus=len(cfg.gpus), 
-        max_epochs=cfg.train.epoch,
-        **extra_args
-    )
+    trainer = pl.Trainer(gpus=len(cfg.gpus), max_epochs=cfg.train.epoch, **extra_args)
     preds = trainer.predict(model, dataloader)
+
 
 def parse(args, cfg):
     from os.path import join
@@ -214,9 +227,11 @@ def parse(args, cfg):
         if 'camnf' not in cfg.visualizer_args.format:
             cfg.visualizer_args.format = 'camnf'
         cfg.visualizer_args.concat = 'none'
-        cfg.visualizer_args['keys'] = list(cfg.visualizer_args['keys']) + ['rgb', 'instance_map'] + ['raw_depth']
+        cfg.visualizer_args['keys'] = list(cfg.visualizer_args['keys']) + ['rgb', 'instance_map'
+                                                                          ] + ['raw_depth']
         assert len(cfg.data_val_args.subs) > 0, cfg.data_val_args.subs
         cfg.visualizer_args['subs'] = cfg.data_val_args.subs
+
 
 if __name__ == "__main__":
     usage = '''This is the training script for Neuralbody'''

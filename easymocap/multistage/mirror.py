@@ -8,9 +8,11 @@
 '''
 import numpy as np
 import torch
-from ..dataset.mirror import flipPoint2D, flipSMPLPoses, flipSMPLParams
+
+from ..dataset.mirror import flipPoint2D, flipSMPLParams, flipSMPLPoses
 from ..estimator.wrapper_base import bbox_from_keypoints
 from .lossbase import Keypoints2D
+
 
 def calc_vanishpoint(keypoints2d):
     '''
@@ -35,6 +37,7 @@ def calc_vanishpoint(keypoints2d):
     result[2] = 1
     return result
 
+
 def calc_mirror_transform(m_):
     """ From mirror vector to mirror matrix
     Args:
@@ -46,24 +49,25 @@ def calc_mirror_transform(m_):
     m = m_[:, :3] / norm
     d = m_[:, 3]
     coeff_mat = torch.zeros((m.shape[0], 3, 4), device=m.device)
-    coeff_mat[:, 0, 0] = 1 - 2*m[:, 0]**2
-    coeff_mat[:, 0, 1] = -2*m[:, 0]*m[:, 1]
-    coeff_mat[:, 0, 2] = -2*m[:, 0]*m[:, 2]
-    coeff_mat[:, 0, 3] = -2*m[:, 0]*d
-    coeff_mat[:, 1, 0] = -2*m[:, 1]*m[:, 0]
-    coeff_mat[:, 1, 1] = 1-2*m[:, 1]**2
-    coeff_mat[:, 1, 2] = -2*m[:, 1]*m[:, 2]
-    coeff_mat[:, 1, 3] = -2*m[:, 1]*d
-    coeff_mat[:, 2, 0] = -2*m[:, 2]*m[:, 0]
-    coeff_mat[:, 2, 1] = -2*m[:, 2]*m[:, 1]
-    coeff_mat[:, 2, 2] = 1-2*m[:, 2]**2
-    coeff_mat[:, 2, 3] = -2*m[:, 2]*d
+    coeff_mat[:, 0, 0] = 1 - 2 * m[:, 0]**2
+    coeff_mat[:, 0, 1] = -2 * m[:, 0] * m[:, 1]
+    coeff_mat[:, 0, 2] = -2 * m[:, 0] * m[:, 2]
+    coeff_mat[:, 0, 3] = -2 * m[:, 0] * d
+    coeff_mat[:, 1, 0] = -2 * m[:, 1] * m[:, 0]
+    coeff_mat[:, 1, 1] = 1 - 2 * m[:, 1]**2
+    coeff_mat[:, 1, 2] = -2 * m[:, 1] * m[:, 2]
+    coeff_mat[:, 1, 3] = -2 * m[:, 1] * d
+    coeff_mat[:, 2, 0] = -2 * m[:, 2] * m[:, 0]
+    coeff_mat[:, 2, 1] = -2 * m[:, 2] * m[:, 1]
+    coeff_mat[:, 2, 2] = 1 - 2 * m[:, 2]**2
+    coeff_mat[:, 2, 3] = -2 * m[:, 2] * d
     return coeff_mat
+
 
 class InitNormal:
     def __init__(self, static) -> None:
         self.static = static
-    
+
     def __call__(self, body_model, body_params, infos):
         if 'normal' in infos.keys():
             print('>>> Reading normal: {}'.format(infos['normal']))
@@ -85,26 +89,30 @@ class InitNormal:
         # d = abs(ax + by + c)/sqrt(a^2+b^2)
         A_v0 = kpts0[:, :, 1] - vpoint0[0, 1]
         B_v0 = vpoint0[0, 0] - kpts0[:, :, 0]
-        C_v0 = kpts0[:, :, 0]*vpoint0[0, 1] - vpoint0[0, 0]*kpts0[:, :, 1]
-        distance01 = np.abs(A_v0 * kpts1[:, :, 0] + B_v0 * kpts1[:, :, 1] + C_v0)/np.sqrt(A_v0*A_v0 + B_v0*B_v0)
+        C_v0 = kpts0[:, :, 0] * vpoint0[0, 1] - vpoint0[0, 0] * kpts0[:, :, 1]
+        distance01 = np.abs(A_v0 * kpts1[:, :, 0] + B_v0 * kpts1[:, :, 1] +
+                            C_v0) / np.sqrt(A_v0 * A_v0 + B_v0 * B_v0)
         A_v1 = kpts1[:, :, 1] - vpoint0[0, 1]
         B_v1 = vpoint0[0, 0] - kpts1[:, :, 0]
-        C_v1 = kpts1[:, :, 0]*vpoint0[0, 1] - vpoint0[0, 0]*kpts1[:, :, 1]
-        distance10 = np.abs(A_v1 * kpts0[:, :, 0] + B_v1 * kpts0[:, :, 1] + C_v1)/np.sqrt(A_v1*A_v1 + B_v1*B_v1)
+        C_v1 = kpts1[:, :, 0] * vpoint0[0, 1] - vpoint0[0, 0] * kpts1[:, :, 1]
+        distance10 = np.abs(A_v1 * kpts0[:, :, 0] + B_v1 * kpts0[:, :, 1] +
+                            C_v1) / np.sqrt(A_v1 * A_v1 + B_v1 * B_v1)
         DIST_THRES = 0.05
         for nf in range(kpts.shape[0]):
             # 计算scale
             bbox0 = bbox_from_keypoints(kpts0[nf].cpu().numpy())
             bbox1 = bbox_from_keypoints(kpts1[nf].cpu().numpy())
-            bbox_size0 = max(bbox0[2]-bbox0[0], bbox0[3]-bbox0[1])
-            bbox_size1 = max(bbox1[2]-bbox1[0], bbox1[3]-bbox1[1])
+            bbox_size0 = max(bbox0[2] - bbox0[0], bbox0[3] - bbox0[1])
+            bbox_size1 = max(bbox1[2] - bbox1[0], bbox1[3] - bbox1[1])
             valid = (kpts0[nf, :, 2] > 0.3) & (kpts1[nf, :, 2] > 0.3)
-            dist01_ = valid*distance01[nf] / bbox_size1
-            dist10_ = valid*distance10[nf] / bbox_size0
+            dist01_ = valid * distance01[nf] / bbox_size1
+            dist10_ = valid * distance10[nf] / bbox_size0
             # 对于距离异常的点，阈值设定为0.1
             # 抑制掉置信度低的视角的点
-            not_valid0 = np.where((dist01_ + dist10_ > DIST_THRES*2) & (kpts0[nf][:, -1] < kpts1[nf][:, -1]))[0]
-            not_valid1 = np.where((dist01_ + dist10_ > DIST_THRES*2) & (kpts0[nf][:, -1] > kpts1[nf][:, -1]))[0]
+            not_valid0 = np.where((dist01_ + dist10_ > DIST_THRES * 2) &
+                                  (kpts0[nf][:, -1] < kpts1[nf][:, -1]))[0]
+            not_valid1 = np.where((dist01_ + dist10_ > DIST_THRES * 2) &
+                                  (kpts0[nf][:, -1] > kpts1[nf][:, -1]))[0]
             kpts0[nf, not_valid0] = 0.
             kpts1[nf, not_valid1] = 0.
             if len(not_valid0) > 0:
@@ -116,7 +124,7 @@ class InitNormal:
         infos['vanish_point0'] = torch.Tensor(vpoint0)
         K = infos['K'][0]
         normal = np.linalg.inv(K) @ vpoint0.T
-        normal = normal.T/np.linalg.norm(normal)
+        normal = normal.T / np.linalg.norm(normal)
         print('>>> Calculating normal from keypoints: {}'.format(normal[0]))
         infos['normal'] = torch.Tensor(normal)
         mirror = torch.zeros((1, 4))
@@ -126,20 +134,23 @@ class InitNormal:
         # 相机原点到两个人中心的连线在normal上的投影
         dist = (center * normal).sum(axis=-1).mean()
         print('>>> Calculating distance from Th: {}'.format(dist))
-        mirror[0, 3] = - dist # initial guess
+        mirror[0, 3] = -dist    # initial guess
         mirror[:, :3] = infos['normal']
         infos['mirror'] = mirror
         return body_params
 
+
 class RemoveP1:
     def __init__(self, static) -> None:
         self.static = static
-    
+
     def __call__(self, body_model, body_params, infos):
         for key in body_params.keys():
-            if key == 'id': continue
+            if key == 'id':
+                continue
             body_params[key] = body_params[key][:, 0]
         return body_params
+
 
 class Mirror:
     def __init__(self, key) -> None:
@@ -154,11 +165,12 @@ class Mirror:
         body_params['poses'] = poses
         return body_params
 
-    def after(self,):
+    def after(self, ):
         pass
 
     def final(self, body_params):
         return self.before(body_params)
+
 
 class Keypoints2DMirror(Keypoints2D):
     def __init__(self, mirror, opt_normal, **kwargs):
@@ -178,11 +190,15 @@ class Keypoints2DMirror(Keypoints2D):
                 size_all.append(bbox_size)
         size_all = np.array(size_all).reshape(-1, 2)
         scale = (size_all[:, 0] / size_all[:, 1]).mean()
-        print('[loss] mean scale = {} from {} frames, use this to balance the two person'.format(scale, size_all.shape[0]))
+        print(
+            '[loss] mean scale = {} from {} frames, use this to balance the two person'.format(
+                scale, size_all.shape[0]
+            )
+        )
         # ATTN: here we use v^2 to suppress the outlier detections
         self.conf = self.conf * self.conf
-        self.conf[:, 1] *= scale*scale
-    
+        self.conf[:, 1] *= scale * scale
+
     def check(self, kpts_est, min_conf=0.3):
         with torch.no_grad():
             M = calc_mirror_transform(self.mirror)
@@ -191,12 +207,12 @@ class Keypoints2DMirror(Keypoints2D):
             kpts_mirror = flipPoint2D(torch.matmul(M, kpts_homo.transpose(1, 2)).transpose(1, 2))
             kpts = torch.stack([kpts_est, kpts_mirror], dim=1)
             img_points = self.project(kpts)
-        conf = (self.conf>min_conf)
+        conf = (self.conf > min_conf)
         err = self.K[..., 0:1, 0].mean() * torch.norm(img_points - self.keypoints, dim=-1) * conf
         if len(err.shape) == 3:
             err = err.sum(dim=1)
             conf = conf.sum(dim=1)
-        err = err.sum(dim=0)/(1e-5 + conf.sum(dim=0))
+        err = err.sum(dim=0) / (1e-5 + conf.sum(dim=0))
         return conf, err
 
     def forward(self, kpts_est, **kwargs):
@@ -211,10 +227,11 @@ class Keypoints2DMirror(Keypoints2D):
         kpts = torch.stack([kpts_est, kpts_mirror], dim=1)
         return super().forward(kpts_est=kpts, **kwargs)
 
+
 class MirrorPoses:
     def __init__(self, ref) -> None:
         self.ref = ref
-    
+
     def __call__(self, body_model, body_params, infos):
         # shapes: (nFrames, 2, nShapes)
         shapes = body_params['shapes'].mean(axis=0).mean(axis=0).reshape(1, 1, -1)
@@ -227,6 +244,7 @@ class MirrorPoses:
         body_params['shapes'] = shapes
         return body_params
 
+
 class MirrorParams:
     def __init__(self, key) -> None:
         self.key = key
@@ -235,27 +253,33 @@ class MirrorParams:
         if len(body_params['poses'].shape) == 2:
             return body_params
         for key in body_params.keys():
-            if key == 'id': continue
+            if key == 'id':
+                continue
             body_params[key] = body_params[key][:, 0]
         return body_params
 
     def before(self, body_params):
         return body_params
 
-    def after(self,):
+    def after(self, ):
         pass
 
     def final(self, body_params):
         device = body_params['poses'].device
-        body_params = {key:val.detach().cpu().numpy() for key, val in body_params.items()}
-        body_params['poses'] = np.hstack((np.zeros_like(body_params['poses'][:, :3]), body_params['poses']))
+        body_params = {key: val.detach().cpu().numpy() for key, val in body_params.items()}
+        body_params['poses'] = np.hstack(
+            (np.zeros_like(body_params['poses'][:, :3]), body_params['poses'])
+        )
         params_mirror = flipSMPLParams(body_params, self.infos['mirror'].cpu().numpy())
         params = {}
         for key in params_mirror.keys():
             if key == 'shapes':
                 params[key] = body_params[key][:, None]
             else:
-                params[key] = np.concatenate([body_params[key][:, None], params_mirror[key][:, None]], axis=-2)
+                params[key] = np.concatenate([
+                    body_params[key][:, None], params_mirror[key][:, None]
+                ],
+                                             axis=-2)
         params['poses'] = params['poses'][..., 3:]
-        params = {key:torch.Tensor(val).to(device) for key, val in params.items()}
+        params = {key: torch.Tensor(val).to(device) for key, val in params.items()}
         return params

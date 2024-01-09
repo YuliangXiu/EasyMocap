@@ -5,15 +5,25 @@
   @ LastEditTime: 2022-10-19 21:37:49
   @ FilePath: /EasyMocapPublic/easymocap/visualize/ffmpeg_wrapper.py
 '''
-import shutil
 import os
-from os.path import join
+import shutil
 from glob import glob
+from os.path import join
+
 from tqdm import tqdm
+
+
 class VideoMaker:
-    def __init__(self, restart=True, fps_in=50, fps_out=50, remove_images=False,
+    def __init__(
+        self,
+        restart=True,
+        fps_in=50,
+        fps_out=50,
+        remove_images=False,
         reorder=False,
-        ext='.jpg', debug=False) -> None:
+        ext='.jpg',
+        debug=False
+    ) -> None:
         self.restart = ' -y' if restart else ''
         self.fps_in = ' -r {}'.format(fps_in)
         self.remove_images = remove_images
@@ -27,9 +37,9 @@ class VideoMaker:
         if not debug:
             self.shell += ' -loglevel quiet'
         self.reorder = reorder
-    
+
     def make_video(self, path):
-        imgnames = sorted(glob(join(path, '*'+self.ext)))
+        imgnames = sorted(glob(join(path, '*' + self.ext)))
         if len(imgnames) == 0:
             print('[ffmpeg] No images in folder {}'.format(path))
             return 0
@@ -50,18 +60,15 @@ class VideoMaker:
             path_ori = path
             path = tmpdir
         cmd = self.shell.format(
-            restart=self.restart,
-            fps_in=self.fps_in,
-            cmd=self.cmd,
-            path=path,
-            ext=self.ext
+            restart=self.restart, fps_in=self.fps_in, cmd=self.cmd, path=path, ext=self.ext
         )
         print(cmd)
         os.system(cmd)
         if self.reorder:
-            shutil.copy(path+'.mp4', path_ori+'.mp4')
+            shutil.copy(path + '.mp4', path_ori + '.mp4')
         if self.remove_images:
             shutil.rmtree(path)
+
 
 if __name__ == '__main__':
     import argparse
@@ -74,7 +81,12 @@ if __name__ == '__main__':
     parser.add_argument('--reorder', action='store_true')
     args = parser.parse_args()
     video_maker = VideoMaker(
-        restart=True, fps_in=args.fps, fps_out=args.fps, remove_images=args.remove, ext=args.ext,
+        restart=True,
+        fps_in=args.fps,
+        fps_out=args.fps,
+        remove_images=args.remove,
+        ext=args.ext,
         reorder=args.reorder,
-        debug=args.debug)
+        debug=args.debug
+    )
     video_maker.make_video(args.path)

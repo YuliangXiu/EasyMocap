@@ -6,12 +6,21 @@
   @ LastEditTime: 2022-06-20 15:47:03
   @ FilePath: /EasyMocapPublic/apps/calibration/calib_dense_by_colmap.py
 '''
+import os
 # This script helps to calibration dense cameras with colmap
 from os.path import join
-import os
-from easymocap.mytools.colmap_wrapper import COLMAPDatabase, colmap_ba, colmap_dense, colmap_feature_match, copy_images, create_empty_db
-from easymocap.mytools.colmap_wrapper import colmap_feature_extract
+
+from easymocap.mytools.colmap_wrapper import (
+    COLMAPDatabase,
+    colmap_ba,
+    colmap_dense,
+    colmap_feature_extract,
+    colmap_feature_match,
+    copy_images,
+    create_empty_db,
+)
 from easymocap.mytools.debug_utils import log
+
 
 def run_dense(path, colmap, args):
     # out = join(out_root, '{}_{:06d}'.format(seq, nf))
@@ -34,7 +43,7 @@ def run_dense(path, colmap, args):
     # perform COLMAP extracting and matching
     colmap_feature_extract(colmap, path, args.share_camera, args.add_mask)
     colmap_feature_match(colmap, path)
-        # check the matches
+    # check the matches
     db = COLMAPDatabase.connect(join(path, 'database.db'))
     geometry = db.read_two_view_geometry()
     db.close()
@@ -48,6 +57,7 @@ def run_dense(path, colmap, args):
     colmap_ba(colmap, path)
     if args.dense:
         colmap_dense(colmap, path)
+
 
 if __name__ == '__main__':
     import argparse

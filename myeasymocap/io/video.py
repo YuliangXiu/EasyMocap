@@ -1,8 +1,10 @@
 import os
 import shutil
-from os.path import join
 from glob import glob
-from easymocap.mytools.debug_utils import log, mywarn, myerror, run_cmd
+from os.path import join
+
+from easymocap.mytools.debug_utils import mywarn, run_cmd
+
 
 class MakeVideo:
     def __init__(self, fps, keep_image, output='tmp') -> None:

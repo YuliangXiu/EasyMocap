@@ -5,24 +5,29 @@
   @ LastEditTime: 2021-06-28 19:36:58
   @ FilePath: /EasyMocapRelease/easymocap/socket/o3d.py
 '''
+import copy
+import json
+import os
+from os.path import join
+
+import numpy as np
 import open3d as o3d
+
+from ..assignment.criterion import CritRange
 from ..config import load_object
-from ..visualize.o3dwrapper import Vector3dVector, create_mesh, load_mesh
 from ..mytools import Timer
 from ..mytools.vis_base import get_rgb_01
+from ..visualize.o3dwrapper import Vector3dVector, create_mesh, load_mesh
 from .base import BaseSocket, log
-import json
-import numpy as np
-from os.path import join
-import os
-from ..assignment.criterion import CritRange
-import copy
 
 rotate = False
+
+
 def o3d_callback_rotate(vis=None):
     global rotate
     rotate = not rotate
     return False
+
 
 class VisOpen3DSocket(BaseSocket):
     def __init__(self, host, port, cfg) -> None:
@@ -73,13 +78,15 @@ class VisOpen3DSocket(BaseSocket):
         self.count = 0
         self.previous = {}
         self.critrange = CritRange(**cfg.range)
-        self.new_frames  = cfg.new_frames
-    
+        self.new_frames = cfg.new_frames
+
     def add_human(self, zero_params):
         vertices = self.body_model(return_verts=True, return_tensor=False, **zero_params)[0]
         self.vertices.append(vertices)
-        if self.body_template is None: # create template
-            mesh = create_mesh(vertices=vertices, faces=self.body_model.faces, colors=self.body_model.color)
+        if self.body_template is None:    # create template
+            mesh = create_mesh(
+                vertices=vertices, faces=self.body_model.faces, colors=self.body_model.color
+            )
         else:
             mesh = copy.deepcopy(self.body_template)
         self.meshes.append(mesh)
@@ -92,16 +99,8 @@ class VisOpen3DSocket(BaseSocket):
         theta = theta + np.pi
         st, ct = np.sin(theta), np.cos(theta)
         sp, cp = np.sin(phi), np.cos(phi)
-        rot_x = np.array([
-            [1., 0., 0.],
-            [0., ct, -st],
-            [0, st, ct]
-        ])
-        rot_z = np.array([
-            [cp, -sp, 0],
-            [sp, cp, 0.],
-            [0., 0., 1.]
-        ])
+        rot_x = np.array([[1., 0., 0.], [0., ct, -st], [0, st, ct]])
+        rot_z = np.array([[cp, -sp, 0], [sp, cp, 0.], [0., 0., 1.]])
         camera_pose[:3, :3] = rot_x @ rot_z
         return camera_pose
 
@@ -110,7 +109,7 @@ class VisOpen3DSocket(BaseSocket):
         init_param = ctr.convert_to_pinhole_camera_parameters()
         # init_param.intrinsic.set_intrinsics(init_param.intrinsic.width, init_param.intrinsic.height, fx, fy, cx, cy)
         init_param.extrinsic = np.array(camera_pose)
-        ctr.convert_from_pinhole_camera_parameters(init_param) 
+        ctr.convert_from_pinhole_camera_parameters(init_param)
 
     def get_camera(self):
         ctr = self.vis.get_view_control()
@@ -133,7 +132,8 @@ class VisOpen3DSocket(BaseSocket):
         return datas_new
 
     def main(self, datas):
-        if self.debug:log('[Info] Load data {}'.format(self.count))
+        if self.debug:
+            log('[Info] Load data {}'.format(self.count))
         if isinstance(datas, str):
             datas = json.loads(datas)
         for data in datas:
@@ -142,7 +142,9 @@ class VisOpen3DSocket(BaseSocket):
                     continue
                 data[key] = np.array(data[key])
             if 'keypoints3d' not in data.keys() and self.filter:
-                data['keypoints3d'] = self.body_model(return_verts=False, return_tensor=False, **data)[0]
+                data['keypoints3d'] = self.body_model(
+                    return_verts=False, return_tensor=False, **data
+                )[0]
         if self.filter:
             datas = self.filter_human(datas)
         with Timer('forward'):
@@ -173,7 +175,7 @@ class VisOpen3DSocket(BaseSocket):
 
     def o3dcallback(self):
         if rotate:
-            self.cfg.camera.phi += np.pi/10
+            self.cfg.camera.phi += np.pi / 10
             camera_pose = self.set_camera(self.cfg, self.get_camera())
             self.init_camera(camera_pose)
 
@@ -181,7 +183,8 @@ class VisOpen3DSocket(BaseSocket):
         if self.disconnect and not self.block:
             self.previous.clear()
         if not self.queue.empty():
-            if self.debug:log('Update' + str(self.queue.qsize()))
+            if self.debug:
+                log('Update' + str(self.queue.qsize()))
             datas = self.queue.get()
             if not self.block:
                 while self.queue.qsize() > 0:

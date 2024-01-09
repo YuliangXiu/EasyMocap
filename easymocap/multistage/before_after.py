@@ -1,5 +1,6 @@
 import torch
 
+
 class Remove:
     def __init__(self, key, index=[], ranges=[]) -> None:
         self.key = key
@@ -14,6 +15,7 @@ class Remove:
         body_params[self.key] = val
         return body_params
 
+
 class RemoveHand:
     def __init__(self, start=60) -> None:
         pass
@@ -25,12 +27,13 @@ class RemoveHand:
         body_params['poses'] = val
         return body_params
 
+
 class Keep:
     def __init__(self, key, ranges=[], index=[]) -> None:
         self.key = key
         self.ranges = ranges
         self.index = index
-    
+
     def before(self, body_params):
         val = body_params[self.key]
         val_zeros = val.detach().clone()
@@ -40,9 +43,10 @@ class Keep:
             val_zeros[..., self.index] = val[..., self.index]
         body_params[self.key] = val_zeros
         return body_params
-    
+
     def final(self, body_params):
         return body_params
+
 
 class VPoser2Full:
     def __init__(self, key) -> None:

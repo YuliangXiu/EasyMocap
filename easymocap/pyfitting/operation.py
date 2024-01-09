@@ -7,6 +7,7 @@
 '''
 import torch
 
+
 def batch_rodrigues(rot_vecs, epsilon=1e-8, dtype=torch.float32):
     ''' Calculates the rotation matrices for a batch of rotation vectors
         Parameters
@@ -40,6 +41,7 @@ def batch_rodrigues(rot_vecs, epsilon=1e-8, dtype=torch.float32):
     rot_mat = ident + sin * K + (1 - cos) * torch.bmm(K, K)
     return rot_mat
 
+
 def projection(points3d, camera_intri, R=None, T=None, distance=None):
     """ project the 3d points to camera coordinate
 
@@ -59,16 +61,14 @@ def projection(points3d, camera_intri, R=None, T=None, distance=None):
             points3d = torch.matmul(points3d, Rt) + Tt
         else:
             points3d = torch.matmul(points3d, Rt) + T
-    
+
     if distance is None:
-        img_points = torch.div(points3d[:, :, :2],
-                               points3d[:, :, 2:3])
+        img_points = torch.div(points3d[:, :, :2], points3d[:, :, 2:3])
     else:
-        img_points = torch.div(points3d[:, :, :2],
-                               distance)
+        img_points = torch.div(points3d[:, :, :2], distance)
     camera_mat = camera_intri[:, :2, :2]
     center = torch.transpose(camera_intri[:, :2, 2:3], 1, 2)
     img_points = torch.matmul(img_points, camera_mat.transpose(1, 2)) + center
     # img_points = torch.einsum('bki,bji->bjk', [camera_mat, img_points]) \
-        # + center
+    # + center
     return img_points

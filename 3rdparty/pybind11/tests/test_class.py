@@ -1,7 +1,6 @@
 import pytest
-
+from pybind11_tests import ConstructorStats, UserType
 from pybind11_tests import class_ as m
-from pybind11_tests import UserType, ConstructorStats
 
 
 def test_repr():
@@ -30,14 +29,18 @@ def test_docstrings(doc):
     assert UserType.get_value.__name__ == "get_value"
     assert UserType.get_value.__module__ == "pybind11_tests"
 
-    assert doc(UserType.get_value) == """
+    assert doc(
+        UserType.get_value
+    ) == """
         get_value(self: m.UserType) -> int
 
         Get value using a method
     """
     assert doc(UserType.value) == "Get/set value using a property"
 
-    assert doc(m.NoConstructor.new_instance) == """
+    assert doc(
+        m.NoConstructor.new_instance
+    ) == """
         new_instance() -> m.class_.NoConstructor
 
         Return an instance
@@ -53,10 +56,14 @@ def test_qualname(doc):
     assert doc(m.NestBase.__init__) == """
         __init__(self: m.class_.NestBase) -> None
     """
-    assert doc(m.NestBase.g) == """
+    assert doc(
+        m.NestBase.g
+    ) == """
         g(self: m.class_.NestBase, arg0: m.class_.NestBase.Nested) -> None
     """
-    assert doc(m.NestBase.Nested.__init__) == """
+    assert doc(
+        m.NestBase.Nested.__init__
+    ) == """
         __init__(self: m.class_.NestBase.Nested) -> None
     """
     assert doc(m.NestBase.Nested.fn) == """
@@ -89,7 +96,9 @@ def test_inheritance(msg):
 
     with pytest.raises(TypeError) as excinfo:
         m.dog_bark(polly)
-    assert msg(excinfo.value) == """
+    assert msg(
+        excinfo.value
+    ) == """
         dog_bark(): incompatible function arguments. The following argument types are supported:
             1. (arg0: m.class_.Dog) -> str
 
@@ -126,13 +135,17 @@ def test_mismatched_holder():
 
     with pytest.raises(RuntimeError) as excinfo:
         m.mismatched_holder_1()
-    assert re.match('generic_type: type ".*MismatchDerived1" does not have a non-default '
-                    'holder type while its base ".*MismatchBase1" does', str(excinfo.value))
+    assert re.match(
+        'generic_type: type ".*MismatchDerived1" does not have a non-default '
+        'holder type while its base ".*MismatchBase1" does', str(excinfo.value)
+    )
 
     with pytest.raises(RuntimeError) as excinfo:
         m.mismatched_holder_2()
-    assert re.match('generic_type: type ".*MismatchDerived2" has a non-default holder type '
-                    'while its base ".*MismatchBase2" does not', str(excinfo.value))
+    assert re.match(
+        'generic_type: type ".*MismatchDerived2" has a non-default holder type '
+        'while its base ".*MismatchBase2" does not', str(excinfo.value)
+    )
 
 
 def test_override_static():
@@ -156,7 +169,6 @@ def test_implicit_conversion_life_support():
 
 def test_operator_new_delete(capture):
     """Tests that class-specific operator new/delete functions are invoked"""
-
     class SubAliased(m.AliasedHasOpNewDelSize):
         pass
 
@@ -174,10 +186,7 @@ def test_operator_new_delete(capture):
     with capture:
         c = m.AliasedHasOpNewDelSize()
         c2 = SubAliased()
-    assert capture == (
-        "C new " + sz_noalias + "\n" +
-        "C new " + sz_alias + "\n"
-    )
+    assert capture == ("C new " + sz_noalias + "\n" + "C new " + sz_alias + "\n")
 
     with capture:
         del a
@@ -197,10 +206,7 @@ def test_operator_new_delete(capture):
         pytest.gc_collect()
         del c2
         pytest.gc_collect()
-    assert capture == (
-        "C delete " + sz_noalias + "\n" +
-        "C delete " + sz_alias + "\n"
-    )
+    assert capture == ("C delete " + sz_noalias + "\n" + "C delete " + sz_alias + "\n")
 
 
 def test_bind_protected_functions():
@@ -260,7 +266,9 @@ def test_reentrant_implicit_conversion_failure(msg):
     # ensure that there is no runaway reentrant implicit conversion (#1035)
     with pytest.raises(TypeError) as excinfo:
         m.BogusImplicitConversion(0)
-    assert msg(excinfo.value) == '''
+    assert msg(
+        excinfo.value
+    ) == '''
         __init__(): incompatible constructor arguments. The following argument types are supported:
             1. m.class_.BogusImplicitConversion(arg0: m.class_.BogusImplicitConversion)
 
@@ -271,8 +279,8 @@ def test_reentrant_implicit_conversion_failure(msg):
 def test_error_after_conversions():
     with pytest.raises(TypeError) as exc_info:
         m.test_error_after_conversions("hello")
-    assert str(exc_info.value).startswith(
-        "Unable to convert function return value to a Python type!")
+    assert str(exc_info.value
+              ).startswith("Unable to convert function return value to a Python type!")
 
 
 def test_aligned():

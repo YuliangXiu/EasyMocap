@@ -8,10 +8,8 @@
 
 import torch
 
-_optimizer_factory = {
-    'adam': torch.optim.Adam,
-    'sgd': torch.optim.SGD
-}
+_optimizer_factory = {'adam': torch.optim.Adam, 'sgd': torch.optim.SGD}
+
 
 def Optimizer(net, cfg):
     params = []

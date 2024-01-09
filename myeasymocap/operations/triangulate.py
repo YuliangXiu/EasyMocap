@@ -1,7 +1,10 @@
-import numpy as np
 from itertools import combinations
+
+import numpy as np
+
 from easymocap.mytools.camera_utils import Undistort
 from easymocap.mytools.triangulator import iterative_triangulate
+
 
 def batch_triangulate(keypoints_, Pall, min_view=2):
     """ triangulate the keypoints of whole body

@@ -6,21 +6,23 @@
   @ LastEditTime: 2022-05-06 16:45:47
   @ FilePath: /EasyMocapPublic/scripts/dataset/download_youtube.py
 '''
-from glob import glob
+import os
 from os.path import join
 from urllib.error import URLError
+
 from pytube import YouTube
-import os
+
 from easymocap.mytools.debug_utils import log, mkdir, myerror
 
 extensions = ['.mp4', '.webm']
+
 
 def download_youtube(vid, outdir):
     outname = join(outdir, vid)
     url = 'https://www.youtube.com/watch?v={}'.format(vid)
     for ext in extensions:
-        if os.path.exists(outname+ext) and not args.restart:
-            log('[Info]: skip video {}'.format(outname+ext))
+        if os.path.exists(outname + ext) and not args.restart:
+            log('[Info]: skip video {}'.format(outname + ext))
             return 0
     log('[Info]: start to download video {}'.format(outname))
     log('[Info]: {}'.format(url))
@@ -45,7 +47,7 @@ def download_youtube(vid, outdir):
                     if stream.resolution == res and \
                        stream.fps == fps and \
                        stream.mime_type == 'video/{}'.format(ext):
-                       streams_valid.append(stream)
+                        streams_valid.append(stream)
     if len(streams_valid) == 0:
         for stream in streams:
             print(stream)
@@ -95,10 +97,18 @@ if __name__ == '__main__':
     elif os.path.exists(vid):
         with open(vid, 'r') as f:
             urls = f.readlines()
-        urls = list(filter(lambda x:not x.startswith('#') and len(x) > 0, map(lambda x: x.strip().replace('https://www.youtube.com/watch?v=', '').split('&')[0], urls)))
+        urls = list(
+            filter(
+                lambda x: not x.startswith('#') and len(x) > 0,
+                map(
+                    lambda x: x.strip().replace('https://www.youtube.com/watch?v=', '').split('&')[
+                        0], urls
+                )
+            )
+        )
         log('[download] download {} videos from {}'.format(len(urls), vid))
     else:
         urls = [vid]
-    
+
     for url in urls:
         download_youtube(url, database)

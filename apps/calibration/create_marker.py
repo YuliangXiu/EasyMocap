@@ -5,11 +5,14 @@
   @ LastEditTime: 2022-05-27 16:50:55
   @ FilePath: /EasyMocapPublic/apps/calibration/create_marker.py
 '''
+import os
+from os.path import join
+
+from tqdm import tqdm
+
 # create multiple markers
 from easymocap.annotator.file_utils import getFileList, read_json, save_json
-from os.path import join
-import os
-from tqdm import tqdm
+
 
 def create_markers(path, name, N, N_group):
     outname = join(path, name)
@@ -19,12 +22,13 @@ def create_markers(path, name, N, N_group):
         if N == N_:
             return 0
     results = {
-        'keypoints3d': [[0., 0., 0.] for _ in range(N)],
-        'lines': [[i, i+1] if (i+1)%N_group!=0 else [i, i-N_group+1] for i in range(N-1) ]
+        'keypoints3d': [[0., 0., 0.] for _ in range(N)], 'lines':
+        [[i, i + 1] if (i + 1) % N_group != 0 else [i, i - N_group + 1] for i in range(N - 1)]
     }
     if N < 5:
-        results['lines'].append([args.N-1, 0])
+        results['lines'].append([args.N - 1, 0])
     save_json(outname, results)
+
 
 def create_corners(path, grid, image='images', ext='.jpg', overwrite=True):
     imgnames = getFileList(join(path, image), ext=ext)
@@ -35,11 +39,8 @@ def create_corners(path, grid, image='images', ext='.jpg', overwrite=True):
         [0., grid[1], 0.],
     ]
     template = {
-        'keypoints3d': keypoints3d,
-        'keypoints2d': [[0.,0.,0.] for _ in range(4)],
-        'pattern': (2, 2),
-        'grid_size': grid,
-        'visited': False
+        'keypoints3d': keypoints3d, 'keypoints2d': [[0., 0., 0.] for _ in range(4)], 'pattern':
+        (2, 2), 'grid_size': grid, 'visited': False
     }
     for imgname in tqdm(imgnames, desc='create template chessboard'):
         annname = imgname.replace(ext, '.json')
@@ -54,7 +55,8 @@ def create_corners(path, grid, image='images', ext='.jpg', overwrite=True):
             continue
         else:
             save_json(annname, template)
-            
+
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
@@ -63,7 +65,9 @@ if __name__ == "__main__":
     parser.add_argument('--annot', type=str, default='chessboard')
     parser.add_argument('--N', type=int)
     parser.add_argument('--N_group', type=int, default=5)
-    parser.add_argument('--grid', type=float, nargs=2, required=True, help='set the length of the grid')
+    parser.add_argument(
+        '--grid', type=float, nargs=2, required=True, help='set the length of the grid'
+    )
     parser.add_argument('--corner', action='store_true')
     parser.add_argument('--overwrite', action='store_true')
     parser.add_argument('--debug', action='store_true')

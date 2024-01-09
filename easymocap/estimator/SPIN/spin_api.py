@@ -31,11 +31,12 @@ python3 demo.py --checkpoint=data/model_checkpoint.pt --img=examples/im1010.png
 Running the previous command will save the results in ```examples/im1010_{shape,shape_side}.png```. The file ```im1010_shape.png``` shows the overlayed reconstruction of human shape. We also render a side view, saved in ```im1010_shape_side.png```.
 """
 
-import torch
-import numpy as np
 import cv2
+import numpy as np
+import torch
 
 from .models import hmr
+
 
 class constants:
     FOCAL_LENGTH = 5000.
@@ -44,6 +45,7 @@ class constants:
     # Mean and standard deviation for normalizing input image
     IMG_NORM_MEAN = [0.485, 0.456, 0.406]
     IMG_NORM_STD = [0.229, 0.224, 0.225]
+
 
 def normalize(tensor, mean, std, inplace: bool = False):
     """Normalize a tensor image with mean and standard deviation.
@@ -66,8 +68,10 @@ def normalize(tensor, mean, std, inplace: bool = False):
         raise TypeError('Input tensor should be a torch tensor. Got {}.'.format(type(tensor)))
 
     if tensor.ndim < 3:
-        raise ValueError('Expected tensor to be a tensor image of size (..., C, H, W). Got tensor.size() = '
-                         '{}.'.format(tensor.size()))
+        raise ValueError(
+            'Expected tensor to be a tensor image of size (..., C, H, W). Got tensor.size() = '
+            '{}.'.format(tensor.size())
+        )
 
     if not inplace:
         tensor = tensor.clone()
@@ -76,13 +80,17 @@ def normalize(tensor, mean, std, inplace: bool = False):
     mean = torch.as_tensor(mean, dtype=dtype, device=tensor.device)
     std = torch.as_tensor(std, dtype=dtype, device=tensor.device)
     if (std == 0).any():
-        raise ValueError('std evaluated to zero after conversion to {}, leading to division by zero.'.format(dtype))
+        raise ValueError(
+            'std evaluated to zero after conversion to {}, leading to division by zero.'.
+            format(dtype)
+        )
     if mean.ndim == 1:
         mean = mean.view(-1, 1, 1)
     if std.ndim == 1:
         std = std.view(-1, 1, 1)
     tensor.sub_(mean).div_(std)
     return tensor
+
 
 class Normalize(torch.nn.Module):
     """Normalize a tensor image with mean and standard deviation.
@@ -100,7 +108,6 @@ class Normalize(torch.nn.Module):
         inplace(bool,optional): Bool to make this operation in-place.
 
     """
-
     def __init__(self, mean, std, inplace=False):
         super().__init__()
         self.mean = mean
@@ -131,39 +138,40 @@ def get_transform(center, scale, res, rot=0):
     t[1, 2] = res[0] * (-float(center[1]) / h + .5)
     t[2, 2] = 1
     if not rot == 0:
-        rot = -rot # To match direction of rotation from cropping
-        rot_mat = np.zeros((3,3))
+        rot = -rot    # To match direction of rotation from cropping
+        rot_mat = np.zeros((3, 3))
         rot_rad = rot * np.pi / 180
-        sn,cs = np.sin(rot_rad), np.cos(rot_rad)
-        rot_mat[0,:2] = [cs, -sn]
-        rot_mat[1,:2] = [sn, cs]
-        rot_mat[2,2] = 1
+        sn, cs = np.sin(rot_rad), np.cos(rot_rad)
+        rot_mat[0, :2] = [cs, -sn]
+        rot_mat[1, :2] = [sn, cs]
+        rot_mat[2, 2] = 1
         # Need to rotate around center
         t_mat = np.eye(3)
-        t_mat[0,2] = -res[1]/2
-        t_mat[1,2] = -res[0]/2
+        t_mat[0, 2] = -res[1] / 2
+        t_mat[1, 2] = -res[0] / 2
         t_inv = t_mat.copy()
-        t_inv[:2,2] *= -1
-        t = np.dot(t_inv,np.dot(rot_mat,np.dot(t_mat,t)))
+        t_inv[:2, 2] *= -1
+        t = np.dot(t_inv, np.dot(rot_mat, np.dot(t_mat, t)))
     return t
-    
+
+
 def transform(pt, center, scale, res, invert=0, rot=0):
     """Transform pixel location to different reference."""
     t = get_transform(center, scale, res, rot=rot)
     if invert:
         t = np.linalg.inv(t)
-    new_pt = np.array([pt[0]-1, pt[1]-1, 1.]).T
+    new_pt = np.array([pt[0] - 1, pt[1] - 1, 1.]).T
     new_pt = np.dot(t, new_pt)
-    return new_pt[:2].astype(int)+1
-    
+    return new_pt[:2].astype(int) + 1
+
+
 def crop(img, center, scale, res, rot=0, bias=0):
     """Crop image according to the supplied bounding box."""
     # Upper left point
-    ul = np.array(transform([1, 1], center, scale, res, invert=1))-1
+    ul = np.array(transform([1, 1], center, scale, res, invert=1)) - 1
     # Bottom right point
-    br = np.array(transform([res[0]+1, 
-                             res[1]+1], center, scale, res, invert=1))-1
-    
+    br = np.array(transform([res[0] + 1, res[1] + 1], center, scale, res, invert=1)) - 1
+
     # Padding so that when rotated proper amount of context is included
     pad = int(np.linalg.norm(br - ul) / 2 - float(br[1] - ul[1]) / 2)
     if not rot == 0:
@@ -181,8 +189,7 @@ def crop(img, center, scale, res, rot=0, bias=0):
     # Range to sample from original image
     old_x = max(0, ul[0]), min(len(img[0]), br[0])
     old_y = max(0, ul[1]), min(len(img), br[1])
-    new_img[new_y[0]:new_y[1], new_x[0]:new_x[1]] = img[old_y[0]:old_y[1], 
-                                                        old_x[0]:old_x[1]]
+    new_img[new_y[0]:new_y[1], new_x[0]:new_x[1]] = img[old_y[0]:old_y[1], old_x[0]:old_x[1]]
 
     if not rot == 0:
         # Remove padding
@@ -190,6 +197,7 @@ def crop(img, center, scale, res, rot=0, bias=0):
         new_img = new_img[pad:-pad, pad:-pad]
     new_img = cv2.resize(new_img, (res[0], res[1]))
     return new_img
+
 
 def process_image(img, bbox, input_res=224):
     """Read image, do preprocessing and possibly crop it according to the bounding box.
@@ -199,31 +207,33 @@ def process_image(img, bbox, input_res=224):
     img = img[:, :, ::-1].copy()
     normalize_img = Normalize(mean=constants.IMG_NORM_MEAN, std=constants.IMG_NORM_STD)
     l, t, r, b = bbox[:4]
-    center = [(l+r)/2, (t+b)/2]
-    width = max(r-l, b-t)
-    scale = width/200.0
+    center = [(l + r) / 2, (t + b) / 2]
+    width = max(r - l, b - t)
+    scale = width / 200.0
     img = crop(img, center, scale, (input_res, input_res))
     img = img.astype(np.float32) / 255.
-    img = torch.from_numpy(img).permute(2,0,1)
+    img = torch.from_numpy(img).permute(2, 0, 1)
     norm_img = normalize_img(img.clone())[None]
     return img, norm_img
 
+
 def solve_translation(X, x, K):
-    A = np.zeros((2*X.shape[0], 3))
-    b = np.zeros((2*X.shape[0], 1))
+    A = np.zeros((2 * X.shape[0], 3))
+    b = np.zeros((2 * X.shape[0], 1))
     fx, fy = K[0, 0], K[1, 1]
     cx, cy = K[0, 2], K[1, 2]
     for nj in range(X.shape[0]):
-        A[2*nj, 0] = 1
-        A[2*nj + 1, 1] = 1
-        A[2*nj, 2] = -(x[nj, 0] - cx)/fx
-        A[2*nj+1, 2] = -(x[nj, 1] - cy)/fy
-        b[2*nj, 0] = X[nj, 2]*(x[nj, 0] - cx)/fx - X[nj, 0]
-        b[2*nj+1, 0] = X[nj, 2]*(x[nj, 1] - cy)/fy - X[nj, 1]
-        A[2*nj:2*nj+2, :] *= x[nj, 2]
-        b[2*nj:2*nj+2, :] *= x[nj, 2]
+        A[2 * nj, 0] = 1
+        A[2 * nj + 1, 1] = 1
+        A[2 * nj, 2] = -(x[nj, 0] - cx) / fx
+        A[2 * nj + 1, 2] = -(x[nj, 1] - cy) / fy
+        b[2 * nj, 0] = X[nj, 2] * (x[nj, 0] - cx) / fx - X[nj, 0]
+        b[2 * nj + 1, 0] = X[nj, 2] * (x[nj, 1] - cy) / fy - X[nj, 1]
+        A[2 * nj:2 * nj + 2, :] *= x[nj, 2]
+        b[2 * nj:2 * nj + 2, :] *= x[nj, 2]
     trans = np.linalg.inv(A.T @ A) @ A.T @ b
     return trans.T[0]
+
 
 def estimate_translation_np(S, joints_2d, joints_conf, K):
     """Find camera translation that brings 3D joints S closest to 2D the corresponding joints_2d.
@@ -240,30 +250,34 @@ def estimate_translation_np(S, joints_2d, joints_conf, K):
     center = np.array([K[0, 2], K[1, 2]])
 
     # transformations
-    Z = np.reshape(np.tile(S[:,2],(2,1)).T,-1)
-    XY = np.reshape(S[:,0:2],-1)
-    O = np.tile(center,num_joints)
-    F = np.tile(f,num_joints)
-    weight2 = np.reshape(np.tile(np.sqrt(joints_conf),(2,1)).T,-1)
+    Z = np.reshape(np.tile(S[:, 2], (2, 1)).T, -1)
+    XY = np.reshape(S[:, 0:2], -1)
+    O = np.tile(center, num_joints)
+    F = np.tile(f, num_joints)
+    weight2 = np.reshape(np.tile(np.sqrt(joints_conf), (2, 1)).T, -1)
 
     # least squares
-    Q = np.array([F*np.tile(np.array([1,0]),num_joints), F*np.tile(np.array([0,1]),num_joints), O-np.reshape(joints_2d,-1)]).T
-    c = (np.reshape(joints_2d,-1)-O)*Z - F*XY
+    Q = np.array([
+        F * np.tile(np.array([1, 0]), num_joints), F * np.tile(np.array([0, 1]), num_joints),
+        O - np.reshape(joints_2d, -1)
+    ]).T
+    c = (np.reshape(joints_2d, -1) - O) * Z - F * XY
 
     # weighted least squares
     W = np.diagflat(weight2)
-    Q = np.dot(W,Q)
-    c = np.dot(W,c)
+    Q = np.dot(W, Q)
+    c = np.dot(W, c)
 
     # square matrix
-    A = np.dot(Q.T,Q)
-    b = np.dot(Q.T,c)
+    A = np.dot(Q.T, Q)
+    b = np.dot(Q.T, c)
 
     # solution
     trans = np.linalg.solve(A, b)
 
     return trans
-    
+
+
 class SPIN:
     def __init__(self, SMPL_MEAN_PARAMS, checkpoint, device) -> None:
         model = hmr(SMPL_MEAN_PARAMS).to(device)
@@ -273,32 +287,28 @@ class SPIN:
         model.eval()
         self.model = model
         self.device = device
-    
+
     def forward(self, img, bbox, use_rh_th=True):
         # Preprocess input image and generate predictions
         img, norm_img = process_image(img, bbox, input_res=constants.IMG_RES)
         with torch.no_grad():
             pred_rotmat, pred_betas, pred_camera = self.model(norm_img.to(self.device))
-        results = {
-            'shapes': pred_betas.detach().cpu().numpy()
-        }
+        results = {'shapes': pred_betas.detach().cpu().numpy()}
         rotmat = pred_rotmat[0].detach().cpu().numpy()
-        poses = np.zeros((1, rotmat.shape[0]*3))
+        poses = np.zeros((1, rotmat.shape[0] * 3))
         for i in range(rotmat.shape[0]):
             p, _ = cv2.Rodrigues(rotmat[i])
-            poses[0, 3*i:3*i+3] = p[:, 0]
+            poses[0, 3 * i:3 * i + 3] = p[:, 0]
         results['poses'] = poses
         if use_rh_th:
             body_params = {
-                'Rh': poses[:, :3].copy(),
-                'poses': poses[:, 3:],
-                'shapes': results['shapes'],
-                'Th': np.zeros((1, 3))
+                'Rh': poses[:, :3].copy(), 'poses': poses[:, 3:], 'shapes': results['shapes'], 'Th':
+                np.zeros((1, 3))
             }
             body_params['Th'][0, 2] = 5
             results = body_params
         return results
-    
+
     def __call__(self, body_model, img, bbox, kpts, camera, ret_vertices=True):
         body_params = self.forward(img.copy(), bbox)
         # TODO: bug: This encode will arise errors in keypoints
@@ -312,10 +322,14 @@ class SPIN:
         trans = solve_translation(keypoints3d[:nJoints], kpts[:nJoints], camera['K'])
         body_params['Th'] += trans[None, :]
         if body_params['Th'][0, 2] < 0:
-            print('  [WARN in SPIN] solved a negative position of human {}'.format(body_params['Th'][0]))
+            print(
+                '  [WARN in SPIN] solved a negative position of human {}'.format(
+                    body_params['Th'][0]
+                )
+            )
             body_params['Th'] = -body_params['Th']
             Rhold = cv2.Rodrigues(body_params['Rh'])[0]
-            rotx = cv2.Rodrigues(np.pi*np.array([1., 0, 0]))[0]
+            rotx = cv2.Rodrigues(np.pi * np.array([1., 0, 0]))[0]
             Rhold = rotx @ Rhold
             body_params['Rh'] = cv2.Rodrigues(Rhold)[0].reshape(1, 3)
         # convert to world coordinate
@@ -333,13 +347,16 @@ class SPIN:
             results['vertices'] = vertices
         return results
 
+
 def init_with_spin(body_model, spin_model, img, bbox, kpts, camera):
     body_params = spin_model.forward(img.copy(), bbox)
     body_params = body_model.check_params(body_params)
     # only use body joints to estimation translation
     nJoints = 15
     keypoints3d = body_model(return_verts=False, return_tensor=False, **body_params)[0]
-    trans = estimate_translation_np(keypoints3d[:nJoints], kpts[:nJoints, :2], kpts[:nJoints, 2], camera['K'])
+    trans = estimate_translation_np(
+        keypoints3d[:nJoints], kpts[:nJoints, :2], kpts[:nJoints, 2], camera['K']
+    )
     body_params['Th'] += trans[None, :]
     # convert to world coordinate
     Rhold = cv2.Rodrigues(body_params['Rh'])[0]
@@ -352,6 +369,7 @@ def init_with_spin(body_model, spin_model, img, bbox, kpts, camera):
     keypoints3d = body_model(return_verts=False, return_tensor=False, **body_params)[0]
     results = {'body_params': body_params, 'vertices': vertices, 'keypoints3d': keypoints3d}
     return results
-    
+
+
 if __name__ == '__main__':
     pass

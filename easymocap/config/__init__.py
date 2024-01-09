@@ -5,6 +5,5 @@
   @ LastEditTime: 2022-07-29 18:49:30
   @ FilePath: /EasyMocapPublic/easymocap/config/__init__.py
 '''
+from .baseconfig import Config, load_object, load_object_from_cmd
 from .yacs import CfgNode
-from .baseconfig import Config
-from .baseconfig import load_object, load_object_from_cmd

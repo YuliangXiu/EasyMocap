@@ -1,22 +1,22 @@
 import os
-from os.path import join
 from glob import glob
+from os.path import join
+
 import numpy as np
-import cv2
+
 from easymocap.mytools.camera_utils import write_camera
+
 
 def rotation_matrix(args):
 
     (x, y, z) = args
 
-    X = np.vstack([[1, 0, 0], [0, np.cos(x), -np.sin(x)],
-                   [0, np.sin(x), np.cos(x)]])
-    Y = np.vstack([[np.cos(y), 0, np.sin(y)], [0, 1, 0],
-                   [-np.sin(y), 0, np.cos(y)]])
-    Z = np.vstack([[np.cos(z), -np.sin(z), 0], [np.sin(z),
-                                                np.cos(z), 0], [0, 0, 1]])
+    X = np.vstack([[1, 0, 0], [0, np.cos(x), -np.sin(x)], [0, np.sin(x), np.cos(x)]])
+    Y = np.vstack([[np.cos(y), 0, np.sin(y)], [0, 1, 0], [-np.sin(y), 0, np.cos(y)]])
+    Z = np.vstack([[np.cos(z), -np.sin(z), 0], [np.sin(z), np.cos(z), 0], [0, 0, 1]])
 
     return (X.dot(Y)).dot(Z)
+
 
 def read_cam_parameters(xml_path, sbj_id, cam_id):
     import xml.etree.ElementTree
@@ -56,6 +56,7 @@ def read_cam_parameters(xml_path, sbj_id, cam_id):
             k = np.hstack((distortion[:2], distortion[3:5], distortion[2:3]))
             return (rt, t, f, c, k)
 
+
 def process_camera(xml_path, seq, act, cams):
     cameras = {}
     for i, cam in enumerate(cams, 1):
@@ -68,13 +69,9 @@ def process_camera(xml_path, seq, act, cams):
         # camera center
         T = t.reshape(3, 1) / 1000
         T = -np.dot(rt, T)
-        cameras[cam] = {
-            'K': K,
-            'R': rt,
-            'T': T,
-            'dist': k.reshape(1, 5)
-        }
+        cameras[cam] = {'K': K, 'R': rt, 'T': T, 'dist': k.reshape(1, 5)}
     return cameras
+
 
 def convert_h36m_easymocap(H36M_ROOT, OUT_ROOT, seqs, cams):
     xml_path = join(H36M_ROOT, 'metadata.xml')
@@ -92,6 +89,7 @@ def convert_h36m_easymocap(H36M_ROOT, OUT_ROOT, seqs, cams):
             # conver cameras
             cameras = process_camera(xml_path, seq, action, cams)
             write_camera(cameras, outdir)
+
 
 if __name__ == '__main__':
     import argparse

@@ -1,5 +1,7 @@
 from typing import Any
+
 import numpy as np
+
 
 class SmoothAny:
     def __init__(self, window_size) -> None:

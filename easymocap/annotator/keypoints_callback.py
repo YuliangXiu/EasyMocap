@@ -6,9 +6,13 @@
   @ FilePath: /EasyMocap/easymocap/annotator/keypoints_callback.py
 '''
 import numpy as np
+
 from .bbox_callback import findNearestPoint
 
-def callback_select_joints(start, end, annots, select, bbox_name='bbox', kpts_name='keypoints', **kwargs):
+
+def callback_select_joints(
+    start, end, annots, select, bbox_name='bbox', kpts_name='keypoints', **kwargs
+):
     if start is None or end is None:
         select['joints'] = -1
         return 0
@@ -46,14 +50,14 @@ def callback_select_joints(start, end, annots, select, bbox_name='bbox', kpts_na
         nj = select['joints']
         data[kpts_name][nj][0] = x
         data[kpts_name][nj][1] = y
-        if kpts_name == 'keypoints': # for body
+        if kpts_name == 'keypoints':    # for body
             if nj in [1, 8]:
                 return 0
             if nj in [2, 5]:
-                data[kpts_name][1][0] = (data[kpts_name][2][0] + data[kpts_name][5][0])/2
-                data[kpts_name][1][1] = (data[kpts_name][2][1] + data[kpts_name][5][1])/2
+                data[kpts_name][1][0] = (data[kpts_name][2][0] + data[kpts_name][5][0]) / 2
+                data[kpts_name][1][1] = (data[kpts_name][2][1] + data[kpts_name][5][1]) / 2
             if nj in [9, 12]:
-                data[kpts_name][8][0] = (data[kpts_name][9][0] + data[kpts_name][12][0])/2
-                data[kpts_name][8][1] = (data[kpts_name][9][1] + data[kpts_name][12][1])/2
+                data[kpts_name][8][0] = (data[kpts_name][9][0] + data[kpts_name][12][0]) / 2
+                data[kpts_name][8][1] = (data[kpts_name][9][1] + data[kpts_name][12][1]) / 2
     elif select[bbox_name] == -1 and select['joints'] != -1:
         select['joints'] = -1

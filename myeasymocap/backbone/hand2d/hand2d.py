@@ -1,12 +1,17 @@
 import os
-import cv2
+
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
-import math
+
 # https://download.openmmlab.com/mmpose/hand/hrnetv2/hrnetv2_w18_rhd2d_256x256-95b20dd8_20210330.pth
 # https://download.openmmlab.com/mmpose/hand/dark/hrnetv2_w18_onehand10k_256x256_dark-a2f80c64_20210330.pth
-from ..basetopdown import BaseTopDownModelCache, get_preds_from_heatmaps, gdown_models
+from ..basetopdown import (
+    BaseTopDownModelCache,
+    gdown_models,
+    get_preds_from_heatmaps,
+)
+
 
 class TopDownAsMMPose(nn.Module):
     def __init__(self, backbone, head):

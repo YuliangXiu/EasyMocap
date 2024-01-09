@@ -1,6 +1,6 @@
 import pytest
-from pybind11_tests import sequences_and_iterators as m
 from pybind11_tests import ConstructorStats
+from pybind11_tests import sequences_and_iterators as m
 
 
 def isclose(a, b, rel_tol=1e-05, abs_tol=0.0):
@@ -67,7 +67,7 @@ def test_sequence():
     assert cstats.values() == ['of size', '5']
 
     it = iter(m.Sequence(0))
-    for _ in range(3):  # __next__ must continue to raise StopIteration
+    for _ in range(3):    # __next__ must continue to raise StopIteration
         with pytest.raises(StopIteration):
             next(it)
     assert cstats.values() == ['of size', '0']
@@ -118,7 +118,7 @@ def test_map_iterator():
         assert v == expected[k]
 
     it = iter(m.StringMap({}))
-    for _ in range(3):  # __next__ must continue to raise StopIteration
+    for _ in range(3):    # __next__ must continue to raise StopIteration
         with pytest.raises(StopIteration):
             next(it)
 

@@ -1,5 +1,5 @@
-import torch
 import torch.nn as nn
+
 try:
     from torch.hub import load_state_dict_from_url
 except ImportError:

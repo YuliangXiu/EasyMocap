@@ -7,23 +7,25 @@
 '''
 import cv2
 
+
 class CV_KEY:
     BLANK = 32
     ENTER = 13
-    LSHIFT = 225 # Mac上不行
+    LSHIFT = 225    # Mac上不行
     NONE = 255
     TAB = 9
     q = 113
     ESC = 27
     BACKSPACE = 8
-    WINDOW_WIDTH = int(1920*0.8)
-    WINDOW_HEIGHT = int(1080*0.8)
+    WINDOW_WIDTH = int(1920 * 0.8)
+    WINDOW_HEIGHT = int(1080 * 0.8)
     LEFT = ord('a')
     RIGHT = ord('d')
     UP = ord('w')
     DOWN = ord('s')
     MINUS = 45
     PLUS = 61
+
 
 def get_key():
     k = cv2.waitKey(10) & 0xFF
@@ -34,6 +36,7 @@ def get_key():
         # 转换为大写
         k = key1 - ord('a') + ord('A')
     return k
+
 
 def point_callback(event, x, y, flags, param):
     """

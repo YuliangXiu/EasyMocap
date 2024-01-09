@@ -1,12 +1,20 @@
+import os
+from collections import defaultdict
+from os.path import join
+
+import cv2
+import numpy as np
+
 from easymocap.mytools.camera_utils import read_cameras
 from easymocap.mytools.debug_utils import log, myerror, mywarn
 from easymocap.mytools.file_utils import read_json
-from .basedata import ImageDataBase, read_mv_images, find_best_people, find_all_people
-import os
-from os.path import join
-import numpy as np
-import cv2
-from collections import defaultdict
+
+from .basedata import (
+    ImageDataBase,
+    find_all_people,
+    find_best_people,
+    read_mv_images,
+)
 
 panoptic15_in_body15 = [1,0,8,5,6,7,12,13,14,2,3,4,9,10,11]
 
@@ -302,7 +310,12 @@ class MVMP(MVDataset):
     
     def check(self, index):
         data = self.__getitem__(index)
-        from easymocap.mytools.vis_base import plot_bbox, merge, plot_keypoints_auto
+        from easymocap.mytools.vis_base import (
+            merge,
+            plot_bbox,
+            plot_keypoints_auto,
+        )
+
         # check the subs vis
         vis = []
         for nv, sub in enumerate(self.subs):

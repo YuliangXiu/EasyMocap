@@ -1,10 +1,10 @@
 # copy from neuralbody
-from torch.utils.data.sampler import Sampler
-from torch.utils.data.sampler import BatchSampler
+import math
+
 import numpy as np
 import torch
-import math
 import torch.distributed as dist
+from torch.utils.data.sampler import BatchSampler, Sampler
 
 
 class ImageSizeBatchSampler(Sampler):
@@ -50,7 +50,6 @@ class IterationBasedBatchSampler(BatchSampler):
     Wraps a BatchSampler, resampling from it until
     a specified number of iterations have been sampled
     """
-
     def __init__(self, batch_sampler, num_iterations, start_iter=0):
         self.batch_sampler = batch_sampler
         self.sampler = self.batch_sampler.sampler
@@ -84,7 +83,6 @@ class DistributedSampler(Sampler):
             distributed training.
         rank (optional): Rank of the current process within num_replicas.
     """
-
     def __init__(self, dataset, num_replicas=None, rank=None, shuffle=True):
         if num_replicas is None:
             if not dist.is_available():
@@ -112,12 +110,12 @@ class DistributedSampler(Sampler):
             indices = torch.arange(len(self.dataset)).tolist()
 
         # add extra samples to make it evenly divisible
-        indices += indices[: (self.total_size - len(indices))]
+        indices += indices[:(self.total_size - len(indices))]
         assert len(indices) == self.total_size
 
         # subsample
         offset = self.num_samples * self.rank
-        indices = indices[offset:offset+self.num_samples]
+        indices = indices[offset:offset + self.num_samples]
         assert len(indices) == self.num_samples
 
         return iter(indices)
@@ -132,7 +130,6 @@ class DistributedSampler(Sampler):
 class FrameSampler(Sampler):
     """Sampler certain frames for test
     """
-
     def __init__(self, dataset):
         inds = np.arange(0, len(dataset.ims))
         ni = len(dataset.ims) // dataset.num_cams

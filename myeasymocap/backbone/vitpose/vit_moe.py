@@ -1,13 +1,15 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import os
+from functools import partial
+
 import numpy as np
 import torch
-from functools import partial
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.checkpoint as checkpoint
 
 from .layers import drop_path, to_2tuple, trunc_normal_
+
 
 def drop_path(x, drop_prob: float = 0., training: bool = False, scale_by_keep: bool = True):
     """Drop paths (Stochastic Depth) per sample (when applied in main path of residual blocks).
@@ -526,6 +528,7 @@ class ComposeVit(nn.Module):
 
 from ..basetopdown import BaseTopDownModelCache
 from ..topdown_keypoints import BaseKeypoints
+
 
 class MyViT(BaseTopDownModelCache, BaseKeypoints):
     def __init__(self, ckpt='data/models/vitpose+_base.pth', single_person=True, url='https://1drv.ms/u/s!AimBgYV7JjTlgcckRZk1bIAuRa_E1w?e=ylDB2G', **kwargs):

@@ -1,9 +1,10 @@
 from __future__ import division
-import pytest
+
 import sys
 
-from pybind11_tests import pytypes as m
+import pytest
 from pybind11_tests import debug_enabled
+from pybind11_tests import pytypes as m
 
 
 def test_list(capture, doc):
@@ -94,9 +95,8 @@ def test_bytes(doc):
     assert m.bytes_from_string().decode() == "foo"
     assert m.bytes_from_str().decode() == "bar"
 
-    assert doc(m.bytes_from_str) == "bytes_from_str() -> {}".format(
-        "bytes" if sys.version_info[0] == 3 else "str"
-    )
+    assert doc(m.bytes_from_str
+              ) == "bytes_from_str() -> {}".format("bytes" if sys.version_info[0] == 3 else "str")
 
 
 def test_capsule(capture):
@@ -175,15 +175,8 @@ def test_constructors():
     assert m.default_constructors() == expected
 
     data = {
-        str: 42,
-        bool: "Not empty",
-        int: "42",
-        float: "+1e3",
-        tuple: range(3),
-        list: range(3),
-        dict: [("two", 2), ("one", 1), ("three", 3)],
-        set: [4, 4, 5, 6, 6, 6],
-        memoryview: b'abc'
+        str: 42, bool: "Not empty", int: "42", float: "+1e3", tuple: range(3), list: range(3), dict:
+        [("two", 2), ("one", 1), ("three", 3)], set: [4, 4, 5, 6, 6, 6], memoryview: b'abc'
     }
     inputs = {k.__name__: v for k, v in data.items()}
     expected = {k.__name__: k(v) for k, v in data.items()}
@@ -206,9 +199,9 @@ def test_implicit_casting():
     """Tests implicit casting when assigning or appending to dicts and lists."""
     z = m.get_implicit_casting()
     assert z['d'] == {
-        'char*_i1': 'abc', 'char*_i2': 'abc', 'char*_e': 'abc', 'char*_p': 'abc',
-        'str_i1': 'str', 'str_i2': 'str1', 'str_e': 'str2', 'str_p': 'str3',
-        'int_i1': 42, 'int_i2': 42, 'int_e': 43, 'int_p': 44
+        'char*_i1': 'abc', 'char*_i2': 'abc', 'char*_e': 'abc', 'char*_p': 'abc', 'str_i1': 'str',
+        'str_i2': 'str1', 'str_e': 'str2', 'str_p': 'str3', 'int_i1': 42, 'int_i2': 42, 'int_e': 43,
+        'int_p': 44
     }
     assert z['l'] == [3, 6, 9, 12, 15]
 
@@ -230,8 +223,7 @@ def test_print(capture):
         m.print_failure()
     assert str(excinfo.value) == "make_tuple(): unable to convert " + (
         "argument of type 'UnregisteredType' to Python object"
-        if debug_enabled else
-        "arguments to Python object (compile in debug mode for details)"
+        if debug_enabled else "arguments to Python object (compile in debug mode for details)"
     )
 
 
@@ -253,8 +245,10 @@ def test_hash():
 
 def test_number_protocol():
     for a, b in [(1, 1), (3, 5)]:
-        li = [a == b, a != b, a < b, a <= b, a > b, a >= b, a + b,
-              a - b, a * b, a / b, a | b, a & b, a ^ b, a >> b, a << b]
+        li = [
+            a == b, a != b, a < b, a <= b, a > b, a >= b, a + b, a - b, a * b, a / b, a | b, a & b,
+            a ^ b, a >> b, a << b
+        ]
         assert m.test_number_protocol(a, b) == li
 
 

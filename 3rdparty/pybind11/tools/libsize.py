@@ -1,4 +1,5 @@
-from __future__ import print_function, division
+from __future__ import division, print_function
+
 import os
 import sys
 
@@ -35,4 +36,3 @@ else:
 
 with open(save, 'w') as sf:
     sf.write(str(libsize))
-

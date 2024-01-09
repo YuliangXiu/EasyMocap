@@ -6,5 +6,4 @@
   @ FilePath: /EasyMocap/easymocap/smplmodel/__init__.py
 '''
 from .body_model import SMPLlayer
-from .body_param import load_model
-from .body_param import merge_params, select_nf, check_keypoints
+from .body_param import check_keypoints, load_model, merge_params, select_nf

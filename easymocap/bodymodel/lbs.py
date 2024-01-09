@@ -14,12 +14,9 @@
 #
 # Contact: ps-license@tuebingen.mpg.de
 
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
+from __future__ import absolute_import, division, print_function
 
 import numpy as np
-
 import torch
 import torch.nn.functional as F
 
@@ -28,14 +25,18 @@ def rot_mat_to_euler(rot_mats):
     # Calculates rotation matrix to euler angles
     # Careful for extreme cases of eular angles like [0.0, pi, 0.0]
 
-    sy = torch.sqrt(rot_mats[:, 0, 0] * rot_mats[:, 0, 0] +
-                    rot_mats[:, 1, 0] * rot_mats[:, 1, 0])
+    sy = torch.sqrt(rot_mats[:, 0, 0] * rot_mats[:, 0, 0] + rot_mats[:, 1, 0] * rot_mats[:, 1, 0])
     return torch.atan2(-rot_mats[:, 2, 0], sy)
 
 
-def find_dynamic_lmk_idx_and_bcoords(vertices, pose, dynamic_lmk_faces_idx,
-                                     dynamic_lmk_b_coords,
-                                     neck_kin_chain, dtype=torch.float32):
+def find_dynamic_lmk_idx_and_bcoords(
+    vertices,
+    pose,
+    dynamic_lmk_faces_idx,
+    dynamic_lmk_b_coords,
+    neck_kin_chain,
+    dtype=torch.float32
+):
     ''' Compute the faces, barycentric coordinates for the dynamic landmarks
 
 
@@ -73,29 +74,22 @@ def find_dynamic_lmk_idx_and_bcoords(vertices, pose, dynamic_lmk_faces_idx,
 
     batch_size = vertices.shape[0]
 
-    aa_pose = torch.index_select(pose.view(batch_size, -1, 3), 1,
-                                 neck_kin_chain)
-    rot_mats = batch_rodrigues(
-        aa_pose.view(-1, 3), dtype=dtype).view(batch_size, -1, 3, 3)
+    aa_pose = torch.index_select(pose.view(batch_size, -1, 3), 1, neck_kin_chain)
+    rot_mats = batch_rodrigues(aa_pose.view(-1, 3), dtype=dtype).view(batch_size, -1, 3, 3)
 
-    rel_rot_mat = torch.eye(3, device=vertices.device,
-                            dtype=dtype).unsqueeze_(dim=0)
+    rel_rot_mat = torch.eye(3, device=vertices.device, dtype=dtype).unsqueeze_(dim=0)
     for idx in range(len(neck_kin_chain)):
         rel_rot_mat = torch.bmm(rot_mats[:, idx], rel_rot_mat)
 
-    y_rot_angle = torch.round(
-        torch.clamp(-rot_mat_to_euler(rel_rot_mat) * 180.0 / np.pi,
-                    max=39)).to(dtype=torch.long)
+    y_rot_angle = torch.round(torch.clamp(-rot_mat_to_euler(rel_rot_mat) * 180.0 / np.pi,
+                                          max=39)).to(dtype=torch.long)
     neg_mask = y_rot_angle.lt(0).to(dtype=torch.long)
     mask = y_rot_angle.lt(-39).to(dtype=torch.long)
     neg_vals = mask * 78 + (1 - mask) * (39 - y_rot_angle)
-    y_rot_angle = (neg_mask * neg_vals +
-                   (1 - neg_mask) * y_rot_angle)
+    y_rot_angle = (neg_mask * neg_vals + (1 - neg_mask) * y_rot_angle)
 
-    dyn_lmk_faces_idx = torch.index_select(dynamic_lmk_faces_idx,
-                                           0, y_rot_angle)
-    dyn_lmk_b_coords = torch.index_select(dynamic_lmk_b_coords,
-                                          0, y_rot_angle)
+    dyn_lmk_faces_idx = torch.index_select(dynamic_lmk_faces_idx, 0, y_rot_angle)
+    dyn_lmk_b_coords = torch.index_select(dynamic_lmk_b_coords, 0, y_rot_angle)
 
     return dyn_lmk_faces_idx, dyn_lmk_b_coords
 
@@ -126,22 +120,34 @@ def vertices2landmarks(vertices, faces, lmk_faces_idx, lmk_bary_coords):
     batch_size, num_verts = vertices.shape[:2]
     device = vertices.device
 
-    lmk_faces = torch.index_select(faces, 0, lmk_faces_idx.view(-1)).view(
-        batch_size, -1, 3)
+    lmk_faces = torch.index_select(faces, 0, lmk_faces_idx.view(-1)).view(batch_size, -1, 3)
 
-    lmk_faces += torch.arange(
-        batch_size, dtype=torch.long, device=device).view(-1, 1, 1) * num_verts
+    lmk_faces += torch.arange(batch_size, dtype=torch.long,
+                              device=device).view(-1, 1, 1) * num_verts
 
-    lmk_vertices = vertices.view(-1, 3)[lmk_faces].view(
-        batch_size, -1, 3, 3)
+    lmk_vertices = vertices.view(-1, 3)[lmk_faces].view(batch_size, -1, 3, 3)
 
     landmarks = torch.einsum('blfi,blf->bli', [lmk_vertices, lmk_bary_coords])
     return landmarks
 
 
-def lbs(betas, pose, v_template, shapedirs, posedirs, J_regressor, parents,
-        lbs_weights, pose2rot=True, dtype=torch.float32, only_shape=False,
-        use_shape_blending=True, use_pose_blending=True, J_shaped=None, return_vertices=True):
+def lbs(
+    betas,
+    pose,
+    v_template,
+    shapedirs,
+    posedirs,
+    J_regressor,
+    parents,
+    lbs_weights,
+    pose2rot=True,
+    dtype=torch.float32,
+    only_shape=False,
+    use_shape_blending=True,
+    use_pose_blending=True,
+    J_shaped=None,
+    return_vertices=True
+):
     ''' Performs Linear Blend Skinning with the given shape and pose parameters
 
         Parameters
@@ -199,8 +205,7 @@ def lbs(betas, pose, v_template, shapedirs, posedirs, J_regressor, parents,
     # 3. Add pose blend shapes
     # N x J x 3 x 3
     if pose2rot:
-        rot_mats = batch_rodrigues(
-            pose.view(-1, 3), dtype=dtype).view([batch_size, -1, 3, 3])
+        rot_mats = batch_rodrigues(pose.view(-1, 3), dtype=dtype).view([batch_size, -1, 3, 3])
     else:
         rot_mats = pose.view(batch_size, -1, 3, 3)
 
@@ -225,8 +230,7 @@ def lbs(betas, pose, v_template, shapedirs, posedirs, J_regressor, parents,
     T = torch.matmul(W, A.view(batch_size, num_joints, 16)) \
         .view(batch_size, -1, 4, 4)
 
-    homogen_coord = torch.ones([batch_size, v_posed.shape[1], 1],
-                               dtype=dtype, device=device)
+    homogen_coord = torch.ones([batch_size, v_posed.shape[1], 1], dtype=dtype, device=device)
     v_posed_homo = torch.cat([v_posed, homogen_coord], dim=2)
     v_homo = torch.matmul(T, torch.unsqueeze(v_posed_homo, dim=-1))
 
@@ -328,8 +332,7 @@ def transform_mat(R, t):
             - T: Bx4x4 Transformation matrix
     '''
     # No padding left or right, only add an extra row
-    return torch.cat([F.pad(R, [0, 0, 0, 1]),
-                      F.pad(t, [0, 0, 0, 1], value=1)], dim=2)
+    return torch.cat([F.pad(R, [0, 0, 0, 1]), F.pad(t, [0, 0, 0, 1], value=1)], dim=2)
 
 
 def batch_rigid_transform(rot_mats, joints, parents, dtype=torch.float32):
@@ -361,16 +364,15 @@ def batch_rigid_transform(rot_mats, joints, parents, dtype=torch.float32):
     rel_joints = joints.clone()
     rel_joints[:, 1:] -= joints[:, parents[1:]]
 
-    transforms_mat = transform_mat(
-        rot_mats.view(-1, 3, 3),
-        rel_joints.contiguous().view(-1, 3, 1)).view(-1, joints.shape[1], 4, 4)
+    transforms_mat = transform_mat(rot_mats.view(-1, 3, 3),
+                                   rel_joints.contiguous().view(-1, 3,
+                                                                1)).view(-1, joints.shape[1], 4, 4)
 
     transform_chain = [transforms_mat[:, 0]]
     for i in range(1, parents.shape[0]):
         # Subtract the joint location at the rest pose
         # No need for rotation, since it's identity when at rest
-        curr_res = torch.matmul(transform_chain[parents[i]],
-                                transforms_mat[:, i])
+        curr_res = torch.matmul(transform_chain[parents[i]], transforms_mat[:, i])
         transform_chain.append(curr_res)
 
     transforms = torch.stack(transform_chain, dim=1)
@@ -384,13 +386,28 @@ def batch_rigid_transform(rot_mats, joints, parents, dtype=torch.float32):
     joints_homogen = F.pad(joints, [0, 0, 0, 1])
 
     rel_transforms = transforms - F.pad(
-        torch.matmul(transforms, joints_homogen), [3, 0, 0, 0, 0, 0, 0, 0])
+        torch.matmul(transforms, joints_homogen), [3, 0, 0, 0, 0, 0, 0, 0]
+    )
 
     return posed_joints, rel_transforms
 
-def dqs(betas, pose, v_template, shapedirs, posedirs, J_regressor, parents,
-        lbs_weights, pose2rot=True, dtype=torch.float32, only_shape=False,
-        use_shape_blending=True, use_pose_blending=True, J_shaped=None):
+
+def dqs(
+    betas,
+    pose,
+    v_template,
+    shapedirs,
+    posedirs,
+    J_regressor,
+    parents,
+    lbs_weights,
+    pose2rot=True,
+    dtype=torch.float32,
+    only_shape=False,
+    use_shape_blending=True,
+    use_pose_blending=True,
+    J_shaped=None
+):
     ''' Performs Linear Blend Skinning with the given shape and pose parameters
 
         Parameters
@@ -448,8 +465,7 @@ def dqs(betas, pose, v_template, shapedirs, posedirs, J_regressor, parents,
     # 3. Add pose blend shapes
     # N x J x 3 x 3
     if pose2rot:
-        rot_mats = batch_rodrigues(
-            pose.view(-1, 3), dtype=dtype).view([batch_size, -1, 3, 3])
+        rot_mats = batch_rodrigues(pose.view(-1, 3), dtype=dtype).view([batch_size, -1, 3, 3])
     else:
         rot_mats = pose.view(batch_size, -1, 3, 3)
 
@@ -464,38 +480,42 @@ def dqs(betas, pose, v_template, shapedirs, posedirs, J_regressor, parents,
     # 4. Get the global joint location
     J_transformed, A = batch_rigid_transform(rot_mats, J, parents, dtype=dtype)
 
-
     # 5. Do skinning:
     # W is N x V x (J + 1)
     W = lbs_weights.unsqueeze(dim=0).expand([batch_size, -1, -1])
 
-    verts=batch_dqs_blending(A,W,v_posed)
+    verts = batch_dqs_blending(A, W, v_posed)
 
     return verts, J_transformed
 
+
 #A: B,J,4,4 W: B,V,J
-def batch_dqs_blending(A,W,Vs):
-    Bnum,Jnum,_,_=A.shape
-    _,Vnum,_=W.shape
-    A = A.view(Bnum*Jnum,4,4)
-    Rs=A[:,:3,:3]
-    ws=torch.sqrt(torch.clamp(Rs[:,0,0]+Rs[:,1,1]+Rs[:,2,2]+1.,min=1.e-6))/2.
-    xs=(Rs[:,2,1]-Rs[:,1,2])/(4.*ws)
-    ys=(Rs[:,0,2]-Rs[:,2,0])/(4.*ws)
-    zs=(Rs[:,1,0]-Rs[:,0,1])/(4.*ws)
-    Ts=A[:,:3,3]
-    vDw=-0.5*( Ts[:,0]*xs + Ts[:,1]*ys + Ts[:,2]*zs)
-    vDx=0.5*( Ts[:,0]*ws + Ts[:,1]*zs - Ts[:,2]*ys)
-    vDy=0.5*(-Ts[:,0]*zs + Ts[:,1]*ws + Ts[:,2]*xs)
-    vDz=0.5*( Ts[:,0]*ys - Ts[:,1]*xs + Ts[:,2]*ws)
-    b0=W.unsqueeze(-2)@torch.cat([ws[:,None],xs[:,None],ys[:,None],zs[:,None]],dim=-1).reshape(Bnum, 1, Jnum, 4) #B,V,J,4
-    be=W.unsqueeze(-2)@torch.cat([vDw[:,None],vDx[:,None],vDy[:,None],vDz[:,None]],dim=-1).reshape(Bnum, 1, Jnum, 4) #B,V,J,4
+def batch_dqs_blending(A, W, Vs):
+    Bnum, Jnum, _, _ = A.shape
+    _, Vnum, _ = W.shape
+    A = A.view(Bnum * Jnum, 4, 4)
+    Rs = A[:, :3, :3]
+    ws = torch.sqrt(torch.clamp(Rs[:, 0, 0] + Rs[:, 1, 1] + Rs[:, 2, 2] + 1., min=1.e-6)) / 2.
+    xs = (Rs[:, 2, 1] - Rs[:, 1, 2]) / (4. * ws)
+    ys = (Rs[:, 0, 2] - Rs[:, 2, 0]) / (4. * ws)
+    zs = (Rs[:, 1, 0] - Rs[:, 0, 1]) / (4. * ws)
+    Ts = A[:, :3, 3]
+    vDw = -0.5 * (Ts[:, 0] * xs + Ts[:, 1] * ys + Ts[:, 2] * zs)
+    vDx = 0.5 * (Ts[:, 0] * ws + Ts[:, 1] * zs - Ts[:, 2] * ys)
+    vDy = 0.5 * (-Ts[:, 0] * zs + Ts[:, 1] * ws + Ts[:, 2] * xs)
+    vDz = 0.5 * (Ts[:, 0] * ys - Ts[:, 1] * xs + Ts[:, 2] * ws)
+    b0 = W.unsqueeze(-2) @ torch.cat([ws[:, None], xs[:, None], ys[:, None], zs[:, None]],
+                                     dim=-1).reshape(Bnum, 1, Jnum, 4)    #B,V,J,4
+    be = W.unsqueeze(-2) @ torch.cat([vDw[:, None], vDx[:, None], vDy[:, None], vDz[:, None]],
+                                     dim=-1).reshape(Bnum, 1, Jnum, 4)    #B,V,J,4
     b0 = b0.reshape(-1, 4)
     be = be.reshape(-1, 4)
 
-    ns=torch.norm(b0,dim=-1,keepdim=True)
-    be=be/ns
-    b0=b0/ns
-    Vs=Vs.view(Bnum*Vnum,3)
-    Vs=Vs+2.*b0[:,1:].cross(b0[:,1:].cross(Vs)+b0[:,:1]*Vs)+2.*(b0[:,:1]*be[:,1:]-be[:,:1]*b0[:,1:]+b0[:,1:].cross(be[:,1:]))
-    return Vs.reshape(Bnum,Vnum,3)
+    ns = torch.norm(b0, dim=-1, keepdim=True)
+    be = be / ns
+    b0 = b0 / ns
+    Vs = Vs.view(Bnum * Vnum, 3)
+    Vs = Vs + 2. * b0[:, 1:].cross(b0[:, 1:].cross(Vs) + b0[:, :1] * Vs) + 2. * (
+        b0[:, :1] * be[:, 1:] - be[:, :1] * b0[:, 1:] + b0[:, 1:].cross(be[:, 1:])
+    )
+    return Vs.reshape(Bnum, Vnum, 3)

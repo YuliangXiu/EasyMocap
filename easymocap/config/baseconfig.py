@@ -7,6 +7,7 @@
 '''
 from .yacs import CfgNode as CN
 
+
 class Config:
     @classmethod
     def load_from_args(cls, default_cfg='config/vis/base.yml'):
@@ -18,7 +19,7 @@ class Config:
         parser.add_argument("--opts", default=[], nargs='+')
         args = parser.parse_args()
         return cls.load(filename=args.cfg, opts=args.opts, debug=args.debug)
-    
+
     @classmethod
     def load_args(cls, usage=None):
         import argparse
@@ -43,11 +44,11 @@ class Config:
         if debug:
             cls.print(cfg)
         return cfg
-    
+
     @staticmethod
     def init(cfg):
         return cfg
-    
+
     @staticmethod
     def parse(cfg):
         pass
@@ -59,7 +60,10 @@ class Config:
         print('[Info] --------------')
         print(cfg)
 
+
 import importlib
+
+
 def load_object(module_name, module_args, **extra_args):
     module_path = '.'.join(module_name.split('.')[:-1])
     module = importlib.import_module(module_path)
@@ -67,10 +71,12 @@ def load_object(module_name, module_args, **extra_args):
     obj = getattr(module, name)(**extra_args, **module_args)
     return obj
 
+
 def load_object_from_cmd(cfg, opt):
     cfg = Config.load(cfg, opt)
     model = load_object(cfg.module, cfg.args)
     return model
+
 
 def load_renderer(cfg, network):
     if cfg.split == 'mesh':
@@ -78,17 +84,20 @@ def load_renderer(cfg, network):
     else:
         return load_object(cfg.renderer_module, cfg.renderer_args, net=network)
 
+
 def load_visualizer(cfg):
     if cfg.split == 'mesh':
         return load_object(cfg.visualizer_mesh_module, cfg.visualizer_mesh_args)
     else:
         return load_object(cfg.visualizer_module, cfg.visualizer_args)
 
+
 def load_evaluator(cfg):
     if cfg.evaluator_args.skip_eval:
         return None
     else:
         return load_object(cfg.evaluator_module, cfg.evaluator_args)
+
 
 def load_config_from_index(config_dict, mode):
     if isinstance(config_dict, str):

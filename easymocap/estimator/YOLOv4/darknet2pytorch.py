@@ -1,10 +1,11 @@
+import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
-from .region_loss import RegionLoss
-from .yolo_layer import YoloLayer
+
 from .config import *
+from .region_loss import RegionLoss
 from .torch_utils import *
+from .yolo_layer import YoloLayer
 
 
 class Mish(torch.nn.Module):
@@ -44,8 +45,11 @@ class MaxPoolDark(nn.Module):
         else:
             padding3 = (self.size - 1) // 2
             padding4 = padding3
-        x = F.max_pool2d(F.pad(x, (padding3, padding4, padding1, padding2), mode='replicate'),
-                         self.size, stride=self.stride)
+        x = F.max_pool2d(
+            F.pad(x, (padding3, padding4, padding1, padding2), mode='replicate'),
+            self.size,
+            stride=self.stride
+        )
         return x
 
 
@@ -56,7 +60,7 @@ class Upsample_expand(nn.Module):
 
     def forward(self, x):
         assert (x.data.dim() == 4)
-        
+
         x = x.view(x.size(0), x.size(1), x.size(2), 1, x.size(3), 1).\
             expand(x.size(0), x.size(1), x.size(2), self.stride, x.size(3), self.stride).contiguous().\
             view(x.size(0), x.size(1), x.size(2) * self.stride, x.size(3) * self.stride)
@@ -72,7 +76,9 @@ class Upsample_interpolate(nn.Module):
     def forward(self, x):
         assert (x.data.dim() == 4)
 
-        out = F.interpolate(x, size=(x.size(2) * self.stride, x.size(3) * self.stride), mode='nearest')
+        out = F.interpolate(
+            x, size=(x.size(2) * self.stride, x.size(3) * self.stride), mode='nearest'
+        )
         return out
 
 
@@ -133,7 +139,7 @@ class Darknet(nn.Module):
         self.width = int(self.blocks[0]['width'])
         self.height = int(self.blocks[0]['height'])
 
-        self.models = self.create_network(self.blocks)  # merge conv, bn,leaky
+        self.models = self.create_network(self.blocks)    # merge conv, bn,leaky
         self.loss = self.models[len(self.models) - 1]
 
         if self.blocks[(len(self.blocks) - 1)]['type'] == 'region':
@@ -157,7 +163,9 @@ class Darknet(nn.Module):
 
             if block['type'] == 'net':
                 continue
-            elif block['type'] in ['convolutional', 'maxpool', 'reorg', 'upsample', 'avgpool', 'softmax', 'connected']:
+            elif block['type'] in [
+                'convolutional', 'maxpool', 'reorg', 'upsample', 'avgpool', 'softmax', 'connected'
+            ]:
                 x = self.models[ind](x)
                 outputs[ind] = x
             elif block['type'] == 'route':
@@ -171,7 +179,8 @@ class Darknet(nn.Module):
                         groups = int(block['groups'])
                         group_id = int(block['group_id'])
                         _, b, _, _ = outputs[layers[0]].shape
-                        x = outputs[layers[0]][:, b // groups * group_id:b // groups * (group_id + 1)]
+                        x = outputs[layers[0]][:,
+                                               b // groups * group_id:b // groups * (group_id + 1)]
                         outputs[ind] = x
                 elif len(layers) == 2:
                     x1 = outputs[layers[0]]
@@ -251,13 +260,17 @@ class Darknet(nn.Module):
                 activation = block['activation']
                 model = nn.Sequential()
                 if batch_normalize:
-                    model.add_module('conv{0}'.format(conv_id),
-                                     nn.Conv2d(prev_filters, filters, kernel_size, stride, pad, bias=False))
+                    model.add_module(
+                        'conv{0}'.format(conv_id),
+                        nn.Conv2d(prev_filters, filters, kernel_size, stride, pad, bias=False)
+                    )
                     model.add_module('bn{0}'.format(conv_id), nn.BatchNorm2d(filters))
                     # model.add_module('bn{0}'.format(conv_id), BN2d(filters))
                 else:
-                    model.add_module('conv{0}'.format(conv_id),
-                                     nn.Conv2d(prev_filters, filters, kernel_size, stride, pad))
+                    model.add_module(
+                        'conv{0}'.format(conv_id),
+                        nn.Conv2d(prev_filters, filters, kernel_size, stride, pad)
+                    )
                 if activation == 'leaky':
                     model.add_module('leaky{0}'.format(conv_id), nn.LeakyReLU(0.1, inplace=True))
                 elif activation == 'relu':
@@ -279,7 +292,9 @@ class Darknet(nn.Module):
                 if stride == 1 and pool_size % 2:
                     # You can use Maxpooldark instead, here is convenient to convert onnx.
                     # Example: [maxpool] size=3 stride=1
-                    model = nn.MaxPool2d(kernel_size=pool_size, stride=stride, padding=pool_size // 2)
+                    model = nn.MaxPool2d(
+                        kernel_size=pool_size, stride=stride, padding=pool_size // 2
+                    )
                 elif stride == pool_size:
                     # You can use Maxpooldark instead, here is convenient to convert onnx.
                     # Example: [maxpool] size=2 stride=2
@@ -364,12 +379,10 @@ class Darknet(nn.Module):
                     model = nn.Linear(prev_filters, filters)
                 elif block['activation'] == 'leaky':
                     model = nn.Sequential(
-                        nn.Linear(prev_filters, filters),
-                        nn.LeakyReLU(0.1, inplace=True))
+                        nn.Linear(prev_filters, filters), nn.LeakyReLU(0.1, inplace=True)
+                    )
                 elif block['activation'] == 'relu':
-                    model = nn.Sequential(
-                        nn.Linear(prev_filters, filters),
-                        nn.ReLU(inplace=True))
+                    model = nn.Sequential(nn.Linear(prev_filters, filters), nn.ReLU(inplace=True))
                 prev_filters = filters
                 out_filters.append(prev_filters)
                 out_strides.append(prev_stride)

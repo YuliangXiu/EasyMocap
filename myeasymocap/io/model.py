@@ -1,9 +1,10 @@
 import os
-import torch
-import numpy as np
-from easymocap.bodymodel.smpl import SMPLModel
 
+import torch
+
+from easymocap.bodymodel.smpl import SMPLModel
 from easymocap.mytools.debug_utils import log
+
 
 def try_to_download_SMPL(model_dir):
     cmd = 'wget https://www.dropbox.com/s/aeulffqzb3zmh8x/pare-github-data.zip'

@@ -5,11 +5,13 @@
   @ LastEditTime: 2021-06-28 11:30:45
   @ FilePath: /EasyMocapRelease/apps/vis/vis_client.py
 '''
-from easymocap.mytools.reader import read_smpl
+import os
 import socket
 import time
+
+from easymocap.mytools.reader import read_smpl
 from easymocap.socket.base_client import BaseSocketClient
-import os
+
 
 def send_rand(client):
     import numpy as np
@@ -19,10 +21,7 @@ def send_rand(client):
         transl = (np.random.rand(1, 3) - 0.5) * 3
         kpts = np.random.rand(25, 4)
         kpts[:, :3] += transl
-        data = {
-            'id': i,
-            'keypoints3d': kpts
-        }
+        data = {'id': i, 'keypoints3d': kpts}
         datas.append(data)
     for _ in range(1):
         for i in range(N_person):
@@ -32,10 +31,13 @@ def send_rand(client):
         time.sleep(0.005)
     client.close()
 
+
 def send_dir(client, path, step):
-    from os.path import join
     from glob import glob
+    from os.path import join
+
     from tqdm import tqdm
+
     from easymocap.mytools.reader import read_keypoints3d
     results = sorted(glob(join(path, '*.json')))
     for result in tqdm(results[::step]):
@@ -46,6 +48,7 @@ def send_dir(client, path, step):
             data = read_keypoints3d(result)
             client.send(data)
         time.sleep(0.005)
+
 
 if __name__ == "__main__":
     import argparse

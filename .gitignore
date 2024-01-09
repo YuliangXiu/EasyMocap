@@ -112,6 +112,7 @@ data/**
 .DS*
 code_deprecate
 code
+
 # neuralbody
 lightning_logs
 models

@@ -5,8 +5,10 @@
   @ LastEditTime: 2021-09-05 20:19:11
   @ FilePath: /EasyMocap/easymocap/neuralbody/trainer/dataloader.py
 '''
-from easymocap.config.baseconfig import load_object
 import torch
+
+from easymocap.config.baseconfig import load_object
+
 
 def make_data_sampler(cfg, dataset, shuffle, is_distributed, is_train):
     if not is_train and cfg.test.sampler == 'FrameSampler':
@@ -22,41 +24,38 @@ def make_data_sampler(cfg, dataset, shuffle, is_distributed, is_train):
         sampler = torch.utils.data.sampler.SequentialSampler(dataset)
     return sampler
 
-def make_batch_data_sampler(cfg, sampler, batch_size, drop_last, max_iter,
-                            is_train):
+
+def make_batch_data_sampler(cfg, sampler, batch_size, drop_last, max_iter, is_train):
     if is_train:
         batch_sampler = cfg.train.batch_sampler
     else:
         batch_sampler = cfg.test.batch_sampler
 
     if batch_sampler == 'default':
-        batch_sampler = torch.utils.data.sampler.BatchSampler(
-            sampler, batch_size, drop_last)
+        batch_sampler = torch.utils.data.sampler.BatchSampler(sampler, batch_size, drop_last)
     elif batch_sampler == 'image_size':
         raise NotImplementedError
 
     if max_iter != -1:
         from .samplers import IterationBasedBatchSampler
-        batch_sampler = IterationBasedBatchSampler(
-            batch_sampler, max_iter)
+        batch_sampler = IterationBasedBatchSampler(batch_sampler, max_iter)
     return batch_sampler
 
 
 def worker_init_fn(worker_id):
-    import numpy as np
-    import time
+    pass
     # np.random.seed(worker_id + (int(round(time.time() * 1000) % (2**16))))
 
 
 def make_collator(cfg, is_train):
-    _collators = {
-    }
+    _collators = {}
     from torch.utils.data.dataloader import default_collate
     collator = cfg.train.collator if is_train else cfg.test.collator
     if collator in _collators:
         return _collators[collator]
     else:
         return default_collate
+
 
 def Dataloader(cfg, split='train', is_train=True, start=0):
     is_distributed = cfg.distributed
@@ -86,14 +85,15 @@ def Dataloader(cfg, split='train', is_train=True, start=0):
         raise NotImplementedError
     is_train = (split == 'train') and is_train
     sampler = make_data_sampler(cfg, dataset, shuffle, is_distributed, is_train)
-    batch_sampler = make_batch_data_sampler(cfg, sampler, batch_size,
-                                            drop_last, max_iter, is_train)
+    batch_sampler = make_batch_data_sampler(cfg, sampler, batch_size, drop_last, max_iter, is_train)
     num_workers = cfg.train.num_workers if is_train else cfg.test.num_workers
     collator = make_collator(cfg, is_train)
-    data_loader = torch.utils.data.DataLoader(dataset,
-                                              batch_sampler=batch_sampler,
-                                              num_workers=num_workers,
-                                              collate_fn=collator,
-                                              worker_init_fn=worker_init_fn)
+    data_loader = torch.utils.data.DataLoader(
+        dataset,
+        batch_sampler=batch_sampler,
+        num_workers=num_workers,
+        collate_fn=collator,
+        worker_init_fn=worker_init_fn
+    )
 
     return data_loader

@@ -1,9 +1,12 @@
+from collections import defaultdict
+
 import numpy as np
-import cv2
+
 from easymocap.mytools.camera_utils import Undistort
 from easymocap.mytools.debug_utils import mywarn
+
 from .triangulate import batch_triangulate, project_wo_dist
-from collections import defaultdict
+
 LOG_FILE = 'log.txt'
 LOG_LEVEL = 0 #2
 FULL_LOG = (lambda x: print(x, file=open(LOG_FILE, 'a'))) if LOG_LEVEL > 1 else (lambda x: None)

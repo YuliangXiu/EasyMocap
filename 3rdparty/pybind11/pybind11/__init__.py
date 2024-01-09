@@ -1,4 +1,7 @@
-from ._version import version_info, __version__  # noqa: F401 imported but unused
+from ._version import (  # noqa: F401 imported but unused
+    __version__,
+    version_info,
+)
 
 
 def get_include(user=False):

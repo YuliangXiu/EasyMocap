@@ -1,16 +1,16 @@
-import pytest
 import re
 
+import pytest
+from pybind11_tests import ConstructorStats
 from pybind11_tests import factory_constructors as m
 from pybind11_tests.factory_constructors import tag
-from pybind11_tests import ConstructorStats
 
 
 def test_init_factory_basic():
     """Tests py::init_factory() wrapper around various ways of returning the object"""
 
     cstats = [ConstructorStats.get(c) for c in [m.TestFactory1, m.TestFactory2, m.TestFactory3]]
-    cstats[0].alive()  # force gc
+    cstats[0].alive()    # force gc
     n_inst = ConstructorStats.detail_reg_inst()
 
     x1 = m.TestFactory1(tag.unique_ptr, 3)
@@ -52,11 +52,7 @@ def test_init_factory_basic():
     assert [i.alive() for i in cstats] == [0, 0, 0]
     assert ConstructorStats.detail_reg_inst() == n_inst
 
-    assert [i.values() for i in cstats] == [
-        ["3", "hi!"],
-        ["7", "hi again"],
-        ["42", "bye"]
-    ]
+    assert [i.values() for i in cstats] == [["3", "hi!"], ["7", "hi again"], ["42", "bye"]]
     assert [i.default_constructions for i in cstats] == [1, 1, 1]
 
 
@@ -91,7 +87,7 @@ def test_init_factory_casting():
     """Tests py::init_factory() wrapper with various upcasting and downcasting returns"""
 
     cstats = [ConstructorStats.get(c) for c in [m.TestFactory3, m.TestFactory4, m.TestFactory5]]
-    cstats[0].alive()  # force gc
+    cstats[0].alive()    # force gc
     n_inst = ConstructorStats.detail_reg_inst()
 
     # Construction from derived references:
@@ -125,18 +121,14 @@ def test_init_factory_casting():
     assert [i.alive() for i in cstats] == [0, 0, 0]
     assert ConstructorStats.detail_reg_inst() == n_inst
 
-    assert [i.values() for i in cstats] == [
-        ["4", "5", "6", "7", "8"],
-        ["4", "5", "8"],
-        ["6", "7"]
-    ]
+    assert [i.values() for i in cstats] == [["4", "5", "6", "7", "8"], ["4", "5", "8"], ["6", "7"]]
 
 
 def test_init_factory_alias():
     """Tests py::init_factory() wrapper with value conversions and alias types"""
 
     cstats = [m.TestFactory6.get_cstats(), m.TestFactory6.get_alias_cstats()]
-    cstats[0].alive()  # force gc
+    cstats[0].alive()    # force gc
     n_inst = ConstructorStats.detail_reg_inst()
 
     a = m.TestFactory6(tag.base, 1)
@@ -196,10 +188,11 @@ def test_init_factory_alias():
     assert [i.alive() for i in cstats] == [0, 0]
     assert ConstructorStats.detail_reg_inst() == n_inst
 
-    assert [i.values() for i in cstats] == [
-        ["1", "8", "3", "4", "5", "6", "123", "10", "47"],
-        ["hi there", "3", "4", "6", "move", "123", "why hello!", "move", "47"]
-    ]
+    assert [i.values() for i in cstats] == [["1", "8", "3", "4", "5", "6", "123", "10", "47"],
+                                            [
+                                                "hi there", "3", "4", "6", "move", "123",
+                                                "why hello!", "move", "47"
+                                            ]]
 
 
 def test_init_factory_dual():
@@ -207,7 +200,7 @@ def test_init_factory_dual():
     from pybind11_tests.factory_constructors import TestFactory7
 
     cstats = [TestFactory7.get_cstats(), TestFactory7.get_alias_cstats()]
-    cstats[0].alive()  # force gc
+    cstats[0].alive()    # force gc
     n_inst = ConstructorStats.detail_reg_inst()
 
     class PythFactory7(TestFactory7):
@@ -262,9 +255,11 @@ def test_init_factory_dual():
     assert not g1.has_alias()
     with pytest.raises(TypeError) as excinfo:
         PythFactory7(tag.shared_ptr, tag.invalid_base, 14)
-    assert (str(excinfo.value) ==
-            "pybind11::init(): construction failed: returned holder-wrapped instance is not an "
-            "alias instance")
+    assert (
+        str(excinfo.value
+           ) == "pybind11::init(): construction failed: returned holder-wrapped instance is not an "
+        "alias instance"
+    )
 
     assert [i.alive() for i in cstats] == [13, 7]
     assert ConstructorStats.detail_reg_inst() == n_inst + 13
@@ -276,10 +271,9 @@ def test_init_factory_dual():
     assert [i.alive() for i in cstats] == [0, 0]
     assert ConstructorStats.detail_reg_inst() == n_inst
 
-    assert [i.values() for i in cstats] == [
-        ["1", "2", "3", "4", "5", "6", "7", "8", "9", "100", "11", "12", "13", "14"],
-        ["2", "4", "6", "8", "9", "100", "12"]
-    ]
+    assert [i.values() for i in cstats] == [[
+        "1", "2", "3", "4", "5", "6", "7", "8", "9", "100", "11", "12", "13", "14"
+    ], ["2", "4", "6", "8", "9", "100", "12"]]
 
 
 def test_no_placement_new(capture):
@@ -339,7 +333,9 @@ def test_reallocations(capture, msg):
 
     with capture:
         create_and_destroy(1)
-    assert msg(capture) == """
+    assert msg(
+        capture
+    ) == """
         noisy new
         noisy placement new
         NoisyAlloc(int 1)
@@ -349,7 +345,8 @@ def test_reallocations(capture, msg):
     """
     with capture:
         create_and_destroy(1.5)
-    assert msg(capture) == strip_comments("""
+    assert msg(capture) == strip_comments(
+        """
         noisy new               # allocation required to attempt first overload
         noisy delete            # have to dealloc before considering factory init overload
         noisy new               # pointer factory calling "new", part 1: allocation
@@ -357,43 +354,51 @@ def test_reallocations(capture, msg):
         ---
         ~NoisyAlloc()  # Destructor
         noisy delete   # operator delete
-    """)
+    """
+    )
 
     with capture:
         create_and_destroy(2, 3)
-    assert msg(capture) == strip_comments("""
+    assert msg(capture) == strip_comments(
+        """
         noisy new          # pointer factory calling "new", allocation
         NoisyAlloc(int 2)  # constructor
         ---
         ~NoisyAlloc()  # Destructor
         noisy delete   # operator delete
-    """)
+    """
+    )
 
     with capture:
         create_and_destroy(2.5, 3)
-    assert msg(capture) == strip_comments("""
+    assert msg(capture) == strip_comments(
+        """
         NoisyAlloc(double 2.5)  # construction (local func variable: operator_new not called)
         noisy new               # return-by-value "new" part 1: allocation
         ~NoisyAlloc()           # moved-away local func variable destruction
         ---
         ~NoisyAlloc()  # Destructor
         noisy delete   # operator delete
-    """)
+    """
+    )
 
     with capture:
         create_and_destroy(3.5, 4.5)
-    assert msg(capture) == strip_comments("""
+    assert msg(capture) == strip_comments(
+        """
         noisy new               # preallocation needed before invoking placement-new overload
         noisy placement new     # Placement new
         NoisyAlloc(double 3.5)  # construction
         ---
         ~NoisyAlloc()  # Destructor
         noisy delete   # operator delete
-    """)
+    """
+    )
 
     with capture:
         create_and_destroy(4, 0.5)
-    assert msg(capture) == strip_comments("""
+    assert msg(capture) == strip_comments(
+        """
         noisy new          # preallocation needed before invoking placement-new overload
         noisy delete       # deallocation of preallocated storage
         noisy new          # Factory pointer allocation
@@ -401,11 +406,13 @@ def test_reallocations(capture, msg):
         ---
         ~NoisyAlloc()  # Destructor
         noisy delete   # operator delete
-    """)
+    """
+    )
 
     with capture:
         create_and_destroy(5, "hi")
-    assert msg(capture) == strip_comments("""
+    assert msg(capture) == strip_comments(
+        """
         noisy new            # preallocation needed before invoking first placement new
         noisy delete         # delete before considering new-style constructor
         noisy new            # preallocation for second placement new
@@ -414,7 +421,8 @@ def test_reallocations(capture, msg):
         ---
         ~NoisyAlloc()  # Destructor
         noisy delete   # operator delete
-    """)
+    """
+    )
 
 
 @pytest.unsupported_on_py2

@@ -14,10 +14,11 @@
 #
 # Contact: ps-license@tuebingen.mpg.de
 
-import torch
 import numpy as np
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 
 class KeypointAttention(nn.Module):
     def __init__(self, use_conv=False, in_channels=(256, 64), out_channels=(256, 64), act='softmax', use_scale=False):

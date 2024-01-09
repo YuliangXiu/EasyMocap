@@ -1,5 +1,6 @@
-from pybind11_tests import chrono as m
 import datetime
+
+from pybind11_tests import chrono as m
 
 
 def test_chrono_system_clock():
@@ -173,4 +174,4 @@ def test_floating_point_duration():
 def test_nano_timepoint():
     time = datetime.datetime.now()
     time1 = m.test_nano_timepoint(time, datetime.timedelta(seconds=60))
-    assert(time1 == time + datetime.timedelta(seconds=60))
+    assert (time1 == time + datetime.timedelta(seconds=60))

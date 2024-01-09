@@ -49,8 +49,8 @@ Members:
     assert y != 3
     assert 3 != y
     # Compare with None
-    assert (y != None)  # noqa: E711
-    assert not (y == None)  # noqa: E711
+    assert (y != None)    # noqa: E711
+    assert not (y == None)    # noqa: E711
     # Compare with an object
     assert (y != object())
     assert not (y == object())
@@ -115,8 +115,8 @@ def test_scoped_enum():
     assert z != 3
     assert 3 != z
     # Compare with None
-    assert (z != None)  # noqa: E711
-    assert not (z == None)  # noqa: E711
+    assert (z != None)    # noqa: E711
+    assert not (z == None)    # noqa: E711
     # Compare with an object
     assert (z != object())
     assert not (z == object())

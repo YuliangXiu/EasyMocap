@@ -5,27 +5,43 @@
   @ LastEditTime: 2021-09-05 19:58:54
   @ FilePath: /EasyMocap/easymocap/neuralbody/model/nerf.py
 '''
-from .base import Base
-from .embedder import get_embedder
-import torch.nn.functional as F
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+
+from .base import Base
+from .embedder import get_embedder
+
 
 class Nerf(Base):
-    def __init__(self, D, W, skips, init_bias=0.693,
-        D_rgb=1, W_rgb=256,
-        xyz_res=10, dim_pts=3,
-        view_res=4, dim_dir=3,# embed
-        ch_pts_extra=0, ch_dir_extra=0, # extra channels
-        latent={}, # latent code
-        pts_to_density=True, pts_to_rgb=False, latent_to_density=False,
-        use_viewdirs=True, use_occupancy=True, # option
-        act_fn='expsoftplus', linear_func='Linear',
+    def __init__(
+        self,
+        D,
+        W,
+        skips,
+        init_bias=0.693,
+        D_rgb=1,
+        W_rgb=256,
+        xyz_res=10,
+        dim_pts=3,
+        view_res=4,
+        dim_dir=3,    # embed
+        ch_pts_extra=0,
+        ch_dir_extra=0,    # extra channels
+        latent={},    # latent code
+        pts_to_density=True,
+        pts_to_rgb=False,
+        latent_to_density=False,
+        use_viewdirs=True,
+        use_occupancy=True,    # option
+        act_fn='expsoftplus',
+        linear_func='Linear',
         relu_fn='relu',
         sample_args=None,
-        embed_pts='none', embed_dir='none',
+        embed_pts='none',
+        embed_dir='none',
         density_bias=True,
-        ) -> None:
+    ) -> None:
         super().__init__(sample_args=sample_args)
         # set the embed
         self.embed_pts_name = embed_pts
@@ -60,10 +76,14 @@ class Nerf(Base):
         self.use_viewdirs = use_viewdirs
         self.use_occupancy = use_occupancy
         if linear_func == 'Linear':
-            linear_func = lambda input_w, output_w, bias=True: nn.Linear(input_w, output_w, bias=bias)
+            linear_func = lambda input_w, output_w, bias=True: nn.Linear(
+                input_w, output_w, bias=bias
+            )
             cat_dim = -1
         elif linear_func == 'Conv1d':
-            linear_func = lambda input_w, output_w, bias=True: nn.Conv1d(input_w, output_w, 1, bias=bias)
+            linear_func = lambda input_w, output_w, bias=True: nn.Conv1d(
+                input_w, output_w, 1, bias=bias
+            )
             cat_dim = 1
         else:
             raise NotImplementedError
@@ -75,10 +95,9 @@ class Nerf(Base):
             self.relu = nn.LeakyReLU(0.1)
         self.cat_dim = cat_dim
 
-        self.pts_linears = nn.ModuleList(
-            [linear_func(ch_pts_inp, W, density_bias)] + 
-            [linear_func(W, W, density_bias) if i not in self.skips else 
-            linear_func(W + ch_pts_inp, W, density_bias) for i in range(D - 1)
+        self.pts_linears = nn.ModuleList([linear_func(ch_pts_inp, W, density_bias)] + [
+            linear_func(W, W, density_bias) if i not in
+            self.skips else linear_func(W + ch_pts_inp, W, density_bias) for i in range(D - 1)
         ])
 
         self.alpha_linear = linear_func(W, 1)
@@ -91,7 +110,7 @@ class Nerf(Base):
         # 5. view_fc: (346, 128)
         # 6. rgb_fc: (128, 3)
 
-        self.latent_linear = linear_func(W+latent_dim, W)
+        self.latent_linear = linear_func(W + latent_dim, W)
         if self.use_viewdirs and not self.pts_to_rgb:
             ### Implementation according to the official code release (https://github.com/bmild/nerf/blob/master/run_nerf_helpers.py#L104-L105)
             view_dim = ch_dir + W
@@ -103,13 +122,12 @@ class Nerf(Base):
         else:
             view_dim = W
         if D_rgb == 1:
-            self.views_linears = nn.ModuleList(
-                [linear_func(view_dim, W // 2)])
+            self.views_linears = nn.ModuleList([linear_func(view_dim, W // 2)])
         else:
             self.views_linears = nn.ModuleList(
-                [linear_func(view_dim, W_rgb)] + 
-                [linear_func(W_rgb, W_rgb) for _ in range(D_rgb - 2)] + 
-                [linear_func(W_rgb, W // 2)]
+                [linear_func(view_dim, W_rgb)] +
+                [linear_func(W_rgb, W_rgb)
+                 for _ in range(D_rgb - 2)] + [linear_func(W_rgb, W // 2)]
             )
         self.rgb_linear = linear_func(W // 2, 3)
 
@@ -117,9 +135,9 @@ class Nerf(Base):
             # initial value for (e^x - 1) / e^x to give 0.5
             self.alpha_linear.bias.data.fill_(init_bias)
         if act_fn == 'exprelu':
-            self.act_alpha = lambda x:1 - torch.exp(-torch.relu(x))
+            self.act_alpha = lambda x: 1 - torch.exp(-torch.relu(x))
         elif act_fn == 'expsoftplus':
-            self.act_alpha = lambda x:1 - torch.exp(-F.softplus(x-1))
+            self.act_alpha = lambda x: 1 - torch.exp(-F.softplus(x - 1))
         elif act_fn == 'sigmoid':
             self.act_alpha = torch.sigmoid
 
@@ -133,7 +151,7 @@ class Nerf(Base):
         latent_embeding = []
         for key in self.latent_keys:
             inp = latents[key]
-            if self.cat_dim == 1: # with Conv1d
+            if self.cat_dim == 1:    # with Conv1d
                 inp = inp[..., None].expand(*inp.shape, wpts.shape[-1])
             else:
                 inp = inp[None].expand(*wpts.shape[:-1], inp.shape[-1])
@@ -163,7 +181,7 @@ class Nerf(Base):
             alpha = self.act_alpha(alpha)
         # rgb part:
         feature = self.feature_linear(h)
-        # latent: 
+        # latent:
         if len(self.latent_keys) > 0:
             features = [feature, latent_embeding]
             features = torch.cat(features, dim=self.cat_dim)
@@ -180,19 +198,23 @@ class Nerf(Base):
             feature = self.relu(feature)
         rgb = self.rgb_linear(feature)
         rgb_01 = torch.sigmoid(rgb)
-        outputs = {
-            'occupancy': alpha,
-            'raw_alpha': raw_alpha,
-            'rgb': rgb_01,
-            'raw_rgb': rgb
-        }
+        outputs = {'occupancy': alpha, 'raw_alpha': raw_alpha, 'rgb': rgb_01, 'raw_rgb': rgb}
         return outputs
 
+
 class MultiLinear(nn.Module):
-    def __init__(self, D, W, input_ch, output_ch, skips,
+    def __init__(
+        self,
+        D,
+        W,
+        input_ch,
+        output_ch,
+        skips,
         init_bias=0.693,
-        act_fn='none', linear_func='Linear',
-        **kwargs) -> None:
+        act_fn='none',
+        linear_func='Linear',
+        **kwargs
+    ) -> None:
         super().__init__()
         self.D = D
         self.W = W
@@ -209,10 +231,10 @@ class MultiLinear(nn.Module):
             raise NotImplementedError
         self.cat_dim = cat_dim
         if D > 0:
-            self.linears = nn.ModuleList(
-                [linear_func(input_ch, W)] + 
-                [linear_func(W, W) if i not in self.skips else 
-                linear_func(W + input_ch, W) for i in range(D - 1)])
+            self.linears = nn.ModuleList([linear_func(input_ch, W)] + [
+                linear_func(W, W) if i not in self.skips else linear_func(W + input_ch, W)
+                for i in range(D - 1)
+            ])
             self.output_linear = linear_func(W, output_ch)
         else:
             self.linears = []
@@ -227,7 +249,7 @@ class MultiLinear(nn.Module):
         self.act_fn = act_fn
         # initialize to 0.5
         self.output_linear.bias.data.fill_(init_bias)
-    
+
     def forward(self, inputs):
         h = inputs
         for i, l in enumerate(self.linears):
@@ -240,20 +262,21 @@ class MultiLinear(nn.Module):
             output = self.act_fn(output)
         return output
 
+
 class EmbedMLP(nn.Module):
     def __init__(self, input_ch, output_ch, multi_res, W, D, bounds) -> None:
         super().__init__()
         self.embed, ch_time = get_embedder(multi_res, input_ch)
         self.bounds = bounds
         self.linear = MultiLinear(
-            input_ch=ch_time,
-            output_ch=output_ch, init_bias=0, act_fn='none',
-            D=D, W=W, skips=[])
+            input_ch=ch_time, output_ch=output_ch, init_bias=0, act_fn='none', D=D, W=W, skips=[]
+        )
 
     def forward(self, time):
-        embed = self.embed(time.reshape(1, -1).float()/self.bounds)
+        embed = self.embed(time.reshape(1, -1).float() / self.bounds)
         output = self.linear(embed)
         return output
+
 
 if __name__ == "__main__":
     cfg = {

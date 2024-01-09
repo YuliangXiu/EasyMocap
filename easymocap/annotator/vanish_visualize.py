@@ -7,7 +7,9 @@
 '''
 import cv2
 import numpy as np
+
 from .basic_visualize import plot_cross
+
 
 def vis_vanish_lines(img, annots, **kwargs):
     if 'vanish_line' not in annots.keys():
@@ -32,4 +34,3 @@ def vis_vanish_lines(img, annots, **kwargs):
             cv2.line(img, (int(pt1[0]), int(pt1[1])), (int(pt2[0]), int(pt2[1])), colors[i], 2)
 
     return img
-

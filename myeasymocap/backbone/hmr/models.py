@@ -7,11 +7,11 @@ LastEditTime: 2021-10-25 11:51:58 am
 LastEditors: dihuangdh
 '''
 
+import math
+
 import torch
 import torch.nn as nn
 import torchvision.models.resnet as resnet
-import numpy as np
-import math
 
 
 class Bottleneck(nn.Module):

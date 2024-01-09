@@ -1,15 +1,17 @@
 import pickle
-import os
 from os.path import join
+
 import numpy as np
 import torch
+
 from .lossbase import LossBase
+
 
 def create_prior_from_cmu(n_gaussians, epsilon=1e-15):
     """Load the gmm from the CMU motion database."""
     from os.path import dirname
     np_dtype = np.float32
-    with open(join(dirname(__file__), 'gmm_%02d.pkl'%(n_gaussians)), 'rb') as f:
+    with open(join(dirname(__file__), 'gmm_%02d.pkl' % (n_gaussians)), 'rb') as f:
         gmm = pickle.load(f, encoding='latin1')
     if True:
         means = gmm['means'].astype(np_dtype)
@@ -18,26 +20,20 @@ def create_prior_from_cmu(n_gaussians, epsilon=1e-15):
     precisions = [np.linalg.inv(cov) for cov in covs]
     precisions = np.stack(precisions).astype(np_dtype)
 
-    sqrdets = np.array([(np.sqrt(np.linalg.det(c)))
-                        for c in gmm['covars']])
+    sqrdets = np.array([(np.sqrt(np.linalg.det(c))) for c in gmm['covars']])
     const = (2 * np.pi)**(69 / 2.)
 
     nll_weights = np.asarray(gmm['weights'] / (const * (sqrdets / sqrdets.min())))
-    cov_dets = [np.log(np.linalg.det(cov.astype(np_dtype)) + epsilon)
-                    for cov in covs]
+    cov_dets = [np.log(np.linalg.det(cov.astype(np_dtype)) + epsilon) for cov in covs]
     return {
-        'means': means,
-        'covs': covs,
-        'precisions': precisions,
-        'nll_weights': -np.log(nll_weights[None]),
-        'weights': weights,
-        'pi_term': np.log(2*np.pi),
-        'cov_dets': cov_dets
+        'means': means, 'covs': covs, 'precisions': precisions, 'nll_weights':
+        -np.log(nll_weights[None]), 'weights': weights, 'pi_term': np.log(2 * np.pi), 'cov_dets':
+        cov_dets
     }
 
+
 class MaxMixturePrior(LossBase):
-    def __init__(self, num_gaussians=8, epsilon=1e-16, use_merged=True,
-        start=3, end=72):
+    def __init__(self, num_gaussians=8, epsilon=1e-16, use_merged=True, start=3, end=72):
         super(MaxMixturePrior, self).__init__()
         np_dtype = np.float32
 
@@ -57,10 +53,9 @@ class MaxMixturePrior(LossBase):
 
     def merged_log_likelihood(self, poses):
         poses = poses[..., self.start:self.end]
-        diff_from_mean = poses.unsqueeze(dim=1) - self.means[None, :, :self.end-self.start]
+        diff_from_mean = poses.unsqueeze(dim=1) - self.means[None, :, :self.end - self.start]
 
-        prec_diff_prod = torch.einsum('mij,bmj->bmi',
-            [self.precisions, diff_from_mean])
+        prec_diff_prod = torch.einsum('mij,bmj->bmi', [self.precisions, diff_from_mean])
         diff_prec_quadratic = (prec_diff_prod * diff_from_mean).sum(dim=-1)
 
         curr_loglikelihood = 0.5 * diff_prec_quadratic + self.nll_weights
@@ -78,15 +73,10 @@ class MaxMixturePrior(LossBase):
             cov = self.covs[idx]
             diff_from_mean = pose - mean
 
-            curr_loglikelihood = torch.einsum('bj,ji->bi',
-                                              [diff_from_mean, prec])
-            curr_loglikelihood = torch.einsum('bi,bi->b',
-                                              [curr_loglikelihood,
-                                               diff_from_mean])
+            curr_loglikelihood = torch.einsum('bj,ji->bi', [diff_from_mean, prec])
+            curr_loglikelihood = torch.einsum('bi,bi->b', [curr_loglikelihood, diff_from_mean])
             cov_term = torch.log(torch.det(cov) + self.epsilon)
-            curr_loglikelihood += 0.5 * (cov_term +
-                                         self.random_var_dim *
-                                         self.pi_term)
+            curr_loglikelihood += 0.5 * (cov_term + self.random_var_dim * self.pi_term)
             likelihoods.append(curr_loglikelihood)
 
         log_likelihoods = torch.stack(likelihoods, dim=1)
@@ -101,10 +91,12 @@ class MaxMixturePrior(LossBase):
         else:
             return self.log_likelihood(poses).mean()
 
+
 class MaxMixtureCompletePrior(object):
     """Prior density estimation."""
     prior = None
     mean_pose = None
+
     def __init__(self, n_gaussians=8, start=3, end=72):
         self.n_gaussians = n_gaussians
         self.start = start
@@ -116,7 +108,7 @@ class MaxMixtureCompletePrior(object):
         """Load the gmm from the CMU motion database."""
         from os.path import dirname
         np_dtype = np.float32
-        with open(join(dirname(__file__), 'gmm_%02d.pkl'%(self.n_gaussians)), 'rb') as f:
+        with open(join(dirname(__file__), 'gmm_%02d.pkl' % (self.n_gaussians)), 'rb') as f:
             gmm = pickle.load(f, encoding='latin1')
         if True:
             means = gmm['means'].astype(np_dtype)
@@ -125,12 +117,10 @@ class MaxMixtureCompletePrior(object):
         precisions = [np.linalg.inv(cov) for cov in covs]
         precisions = np.stack(precisions).astype(np_dtype)
 
-        sqrdets = np.array([(np.sqrt(np.linalg.det(c)))
-                            for c in gmm['covars']])
+        sqrdets = np.array([(np.sqrt(np.linalg.det(c))) for c in gmm['covars']])
         const = (2 * np.pi)**(69 / 2.)
 
-        nll_weights = np.asarray(gmm['weights'] / (const *
-                                                   (sqrdets / sqrdets.min())))
+        nll_weights = np.asarray(gmm['weights'] / (const * (sqrdets / sqrdets.min())))
         self.means = means
         self.weights = weights
         self.mean_pose = weights.dot(means)
@@ -138,12 +128,13 @@ class MaxMixtureCompletePrior(object):
     def __call__(self, body_model, body_params, info):
         poses = body_params['poses']
         for nf in range(poses.shape[0]):
-            poses[nf][self.start:self.end] = self.mean_pose[:self.end-self.start]
+            poses[nf][self.start:self.end] = self.mean_pose[:self.end - self.start]
         return body_params
 
     def get_gmm_prior(self):
         """Getter implementation."""
         return self.prior
+
 
 class GMMPrior(MaxMixturePrior):
     def __call__(self, pred, target):

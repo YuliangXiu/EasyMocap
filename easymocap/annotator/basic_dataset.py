@@ -5,15 +5,26 @@
   @ LastEditTime: 2022-09-15 21:58:57
   @ FilePath: /EasyMocapPublic/easymocap/annotator/basic_dataset.py
 '''
-from os.path import join
 import os
 import shutil
+from os.path import join
+
 from .file_utils import getFileList
 
+
 class ImageFolder:
-    def __init__(self, path, sub=None, image='images', annot='annots', 
-        no_annot=False, share_annot=False, ext='.jpg', remove_tmp=True,
-        max_per_folder=-1) -> None:
+    def __init__(
+        self,
+        path,
+        sub=None,
+        image='images',
+        annot='annots',
+        no_annot=False,
+        share_annot=False,
+        ext='.jpg',
+        remove_tmp=True,
+        max_per_folder=-1
+    ) -> None:
         self.root = path
         self.image = image
         self.annot = annot
@@ -25,7 +36,7 @@ class ImageFolder:
         self.annot_root_tmp = join(path, self.annot + '_tmp')
         if os.path.exists(self.annot_root_tmp) and remove_tmp:
             shutil.rmtree(self.annot_root_tmp)
-        print('- Load data from {}'.format(path))        
+        print('- Load data from {}'.format(path))
         if sub is None:
             print('- Try to find image names...')
             self.imgnames = getFileList(self.image_root, ext=ext, max=max_per_folder)
@@ -51,10 +62,12 @@ class ImageFolder:
                     self.annnames = self.annnames[:length]
         self.isTmp = True
         self.no_annot = no_annot
-    
+
     def __getitem__(self, index):
         if index > len(self.imgnames):
-            print('!!! You are try to read {} image from {} images'.format(index, len(self.imgnames)))
+            print(
+                '!!! You are try to read {} image from {} images'.format(index, len(self.imgnames))
+            )
             print('!!! Please check image path: {}'.format(self.image_root))
         imgname = join(self.image_root, self.imgnames[index])
         if self.no_annot:
@@ -65,12 +78,13 @@ class ImageFolder:
             else:
                 annname = join(self.annot_root, self.annnames[index])
         return imgname, annname
-    
+
     def __len__(self):
         return len(self.imgnames)
-    
+
     def __str__(self) -> str:
         return '{}: {} images'.format(self.root, len(self))
+
 
 class MVBase:
     def __init__(self, path, subs, annot='annots') -> None:
@@ -91,8 +105,7 @@ class MVBase:
             self.imgnames[sub] = imgnames
             self.annnames[sub] = annnames
         self.isTmp = True
-        
-    
+
     def __getitem__(self, index):
         imgnames, annnames = {}, {}
         for sub in self.subs:
@@ -103,6 +116,6 @@ class MVBase:
                 annname = join(self.annot_root, self.annnames[sub][index])
             annnames[sub] = annname
         return imgnames, annnames
-    
+
     def __len__(self):
         return len(self.imgnames[self.subs[0]])

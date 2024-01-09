@@ -16,6 +16,7 @@
 
 import torch
 
+
 def interpolate(feat, uv):
     '''
 

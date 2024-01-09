@@ -5,17 +5,20 @@
   @ LastEditTime: 2021-06-28 10:33:26
   @ FilePath: /EasyMocapRelease/apps/demo/smpl_from_keypoints.py
 '''
+import os
+from os.path import join
+
+from tqdm import tqdm
+
 # This is the script of fitting SMPL to 3d(+2d) keypoints
 from easymocap.dataset import CONFIG
 from easymocap.mytools import Timer
-from easymocap.smplmodel import load_model, select_nf
-from easymocap.mytools.reader import read_keypoints3d_all
 from easymocap.mytools.file_utils import write_smpl
-from easymocap.pipeline.weight import load_weight_pose, load_weight_shape
+from easymocap.mytools.reader import read_keypoints3d_all
 from easymocap.pipeline import smpl_from_keypoints3d
-import os
-from os.path import join
-from tqdm import tqdm
+from easymocap.pipeline.weight import load_weight_pose, load_weight_shape
+from easymocap.smplmodel import load_model, select_nf
+
 
 def smpl_from_skel(path, sub, out, skel3d, args):
     config = CONFIG[args.body]
@@ -26,10 +29,16 @@ def smpl_from_skel(path, sub, out, skel3d, args):
     with Timer('Loading {}, {}'.format(args.model, args.gender)):
         body_model = load_model(args.gender, model_type=args.model)
     for pid, result in results3d.items():
-        body_params = smpl_from_keypoints3d(body_model, result['keypoints3d'], config, args,
-            weight_shape=weight_shape, weight_pose=weight_pose)
+        body_params = smpl_from_keypoints3d(
+            body_model,
+            result['keypoints3d'],
+            config,
+            args,
+            weight_shape=weight_shape,
+            weight_pose=weight_pose
+        )
         result['body_params'] = body_params
-    
+
     # write for each frame
     for nf, skelname in enumerate(tqdm(filenames, desc='writing')):
         basename = os.path.basename(skelname)
@@ -45,18 +54,18 @@ def smpl_from_skel(path, sub, out, skel3d, args):
                 res.append(val)
         write_smpl(outname, res)
 
+
 if __name__ == "__main__":
     from easymocap.mytools import load_parser, parse_parser
     parser = load_parser()
     parser.add_argument('--skel3d', type=str, required=True)
     args = parse_parser(parser)
-    help="""
+    help = """
   Demo code for fitting SMPL to 3d(+2d) skeletons:
 
     - Input : {} => {}
     - Output: {}
     - Body  : {}=>{}, {}
-""".format(args.path, args.skel3d, args.out, 
-    args.model, args.gender, args.body)
+""".format(args.path, args.skel3d, args.out, args.model, args.gender, args.body)
     print(help)
     smpl_from_skel(args.path, args.sub, args.out, args.skel3d, args)

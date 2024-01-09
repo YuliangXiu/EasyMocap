@@ -1,9 +1,11 @@
-from typing import Any
-from easymocap.config import Config, load_object
-from easymocap.mytools.debug_utils import mywarn, log
-import numpy as np
 import time
+
+import numpy as np
 from tabulate import tabulate
+
+from easymocap.config import load_object
+from easymocap.mytools.debug_utils import log, mywarn
+
 
 class Timer:
     def __init__(self, record, verbose) -> None:
@@ -96,7 +98,6 @@ class MultiStage:
                     data[key] = np.stack(data[key])
                 except ValueError:
                     print('[{}] Skip merge {}'.format('Stages', key))
-                    pass
             elif isinstance(val, dict):
                 data[key] = MultiStage.merge_data(data[key])
         return data

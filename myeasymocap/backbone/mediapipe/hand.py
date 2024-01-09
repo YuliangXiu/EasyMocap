@@ -2,8 +2,10 @@
 # https://colab.research.google.com/github/googlesamples/mediapipe/blob/main/examples/hand_landmarker/python/hand_landmarker.ipynb#scrollTo=OMjuVQiDYJKF&uniqifier=1
 # pip install -q mediapipe==0.10.0
 import os
-import numpy as np
+
 import cv2
+import numpy as np
+
 # !wget -q https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task
 try:
     import mediapipe as mp
@@ -15,34 +17,34 @@ except:
 
 VisionRunningMode = mp.tasks.vision.RunningMode
 
+
 def bbox_from_keypoints(keypoints, rescale=1.2, detection_thresh=0.05, MIN_PIXEL=5):
     """Get center and scale for bounding box from openpose detections."""
-    valid = keypoints[:,-1] > detection_thresh
+    valid = keypoints[:, -1] > detection_thresh
     if valid.sum() < 3:
         return [0, 0, 100, 100, 0]
-    valid_keypoints = keypoints[valid][:,:-1]
-    center = (valid_keypoints.max(axis=0) + valid_keypoints.min(axis=0))/2
+    valid_keypoints = keypoints[valid][:, :-1]
+    center = (valid_keypoints.max(axis=0) + valid_keypoints.min(axis=0)) / 2
     bbox_size = valid_keypoints.max(axis=0) - valid_keypoints.min(axis=0)
     # adjust bounding box tightness
     if bbox_size[0] < MIN_PIXEL or bbox_size[1] < MIN_PIXEL:
         return [0, 0, 100, 100, 0]
     bbox_size = bbox_size * rescale
     bbox = [
-        center[0] - bbox_size[0]/2, 
-        center[1] - bbox_size[1]/2,
-        center[0] + bbox_size[0]/2, 
-        center[1] + bbox_size[1]/2,
-        keypoints[valid, 2].mean()
+        center[0] - bbox_size[0] / 2, center[1] - bbox_size[1] / 2, center[0] + bbox_size[0] / 2,
+        center[1] + bbox_size[1] / 2, keypoints[valid, 2].mean()
     ]
     return bbox
 
+
 class MediaPipe:
     NUM_HAND = 21
+
     def create_detector(self):
         base_options = python.BaseOptions(model_asset_path=self.ckpt)
-        options = vision.HandLandmarkerOptions(base_options=base_options,
-                                            num_hands=2,
-                                            running_mode=VisionRunningMode.VIDEO)
+        options = vision.HandLandmarkerOptions(
+            base_options=base_options, num_hands=2, running_mode=VisionRunningMode.VIDEO
+        )
         detector = vision.HandLandmarker.create_from_options(options)
         return detector
 
@@ -58,7 +60,7 @@ class MediaPipe:
         self.ckpt = ckpt
         self.detector = {}
         self.timestamp = 0
-    
+
     @staticmethod
     def to_array(pose, W, H):
         N = len(pose)
@@ -80,7 +82,7 @@ class MediaPipe:
         poses = self.to_array(pose, W, H)
         poses[..., 2] = 1.
         return poses
-    
+
     def __call__(self, imgnames, images):
         squeeze = False
         if not isinstance(imgnames, list):
@@ -111,7 +113,7 @@ class MediaPipe:
         if squeeze:
             keypoints = keypoints[0]
             bboxes = bboxes[0]
-        self.timestamp += 33 # 假设30fps
+        self.timestamp += 33    # 假设30fps
         return {
             'keypoints': keypoints,
             'bbox': bboxes,

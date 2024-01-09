@@ -7,12 +7,17 @@
   @ FilePath: /EasyMocapPublic/apps/calibration/calib_static_dynamic_by_colmap.py
 '''
 import os
-from os.path import join
 import shutil
-from easymocap.mytools.debug_utils import log, myerror, mywarn, run_cmd, mkdir
-from easymocap.mytools.colmap_wrapper import colmap_feature_extract, colmap_feature_match
+from os.path import join
 
 from tqdm import tqdm
+
+from easymocap.mytools.colmap_wrapper import (
+    colmap_feature_extract,
+    colmap_feature_match,
+)
+from easymocap.mytools.debug_utils import log, mkdir, myerror, run_cmd
+
 
 def copy_images(data, out, nf=0):
     subs = sorted(os.listdir(data))
@@ -25,12 +30,13 @@ def copy_images(data, out, nf=0):
         image_names.append(dstname)
     return image_names
 
+
 def copy_to_newdir(path, out, num):
     statics = copy_images(join(path, 'images'), join(out, 'images', 'static'), nf=0)
     scannames = sorted(os.listdir(join(path, 'scan')))
     if num != -1:
         log('[copy] sample {} from {} images'.format(num, len(scannames)))
-        scannames = scannames[::len(scannames)//num]
+        scannames = scannames[::len(scannames) // num]
     scans = []
     for name in tqdm(scannames):
         srcname = join(path, 'scan', name)
@@ -40,22 +46,33 @@ def copy_to_newdir(path, out, num):
         scans.append(dstname)
     return statics, scans
 
+
 def sparse_recon(path, statics, scans, colmap):
-    colmap_feature_extract(colmap, path, share_camera=False, add_mask=False, gpu=args.gpu,
-        share_camera_per_folder=True)
+    colmap_feature_extract(
+        colmap,
+        path,
+        share_camera=False,
+        add_mask=False,
+        gpu=args.gpu,
+        share_camera_per_folder=True
+    )
     colmap_feature_match(colmap, path, gpu=args.gpu)
     mkdir(join(path, 'sparse'))
     cmd = f'{colmap} mapper --database_path {path}/database.db --image_path {path}/images --output_path {path}/sparse \
 --Mapper.ba_refine_principal_point 1 \
 --Mapper.ba_global_max_num_iterations 1000 \
 '
+
     run_cmd(cmd)
+
 
 if __name__ == '__main__':
     import argparse
-    parser = argparse.ArgumentParser(usage=
-    '''This script is used to calibrate a scene with a moving videos and multiple images captured by static cameras
-''')
+    parser = argparse.ArgumentParser(
+        usage=
+        '''This script is used to calibrate a scene with a moving videos and multiple images captured by static cameras
+'''
+    )
     parser.add_argument('path', type=str)
     parser.add_argument('out', type=str)
     parser.add_argument('--colmap', type=str, default=None)

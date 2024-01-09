@@ -5,15 +5,28 @@
   @ LastEditTime: 2021-03-31 23:02:58
   @ FilePath: /EasyMocap/easymocap/pyfitting/optimize_mirror.py
 '''
-from .optimize_simple import _optimizeSMPL, deepcopy_tensor, get_prepare_smplx, dict_of_tensor_to_numpy
-from .lossfactory import LossRepro, LossInit, LossSmoothBody, LossSmoothPoses, LossSmoothBodyMulti, LossSmoothPosesMulti
-from ..dataset.mirror import flipSMPLPoses, flipPoint2D, flipSMPLParams
-import torch
 import numpy as np
-    # 这里存在几种技术方案:
-    #   1. theta, beta, R, T, (a, b, c, d)          || L_r
-    #   2. theta, beta, R, T, R', T'                || L_r, L_s
-    #   3. theta, beta, R, T, theta', beta', R', T' || L_r, L_s
+import torch
+
+from ..dataset.mirror import flipPoint2D, flipSMPLParams, flipSMPLPoses
+from .lossfactory import (
+    LossInit,
+    LossRepro,
+    LossSmoothBodyMulti,
+    LossSmoothPosesMulti,
+)
+from .optimize_simple import (
+    _optimizeSMPL,
+    deepcopy_tensor,
+    dict_of_tensor_to_numpy,
+    get_prepare_smplx,
+)
+
+# 这里存在几种技术方案:
+#   1. theta, beta, R, T, (a, b, c, d)          || L_r
+#   2. theta, beta, R, T, R', T'                || L_r, L_s
+#   3. theta, beta, R, T, theta', beta', R', T' || L_r, L_s
+
 
 def flipSMPLPosesV(params, reverse=False):
     # 前面部分是外面的人，后面部分是镜子里的人
@@ -24,6 +37,7 @@ def flipSMPLPosesV(params, reverse=False):
         params['poses'][nFrames:] = flipSMPLPoses(params['poses'][:nFrames])
     return params
 
+
 def flipSMPLParamsV(params, mirror):
     params_mirror = flipSMPLParams(params, mirror)
     params_new = {}
@@ -33,6 +47,7 @@ def flipSMPLParamsV(params, mirror):
         else:
             params_new[key] = np.vstack([params[key], params_mirror[key]])
     return params_new
+
 
 def calc_mirror_transform(m_):
     """ From mirror vector to mirror matrix
@@ -47,19 +62,20 @@ def calc_mirror_transform(m_):
     m = m_[:, :3] / norm
     d = m_[:, 3]
     coeff_mat = torch.zeros((m.shape[0], 3, 4), device=m.device)
-    coeff_mat[:, 0, 0] = 1 - 2*m[:, 0]**2
-    coeff_mat[:, 0, 1] = -2*m[:, 0]*m[:, 1]
-    coeff_mat[:, 0, 2] = -2*m[:, 0]*m[:, 2]
-    coeff_mat[:, 0, 3] = -2*m[:, 0]*d
-    coeff_mat[:, 1, 0] = -2*m[:, 1]*m[:, 0]
-    coeff_mat[:, 1, 1] = 1-2*m[:, 1]**2
-    coeff_mat[:, 1, 2] = -2*m[:, 1]*m[:, 2]
-    coeff_mat[:, 1, 3] = -2*m[:, 1]*d
-    coeff_mat[:, 2, 0] = -2*m[:, 2]*m[:, 0]
-    coeff_mat[:, 2, 1] = -2*m[:, 2]*m[:, 1]
-    coeff_mat[:, 2, 2] = 1-2*m[:, 2]**2
-    coeff_mat[:, 2, 3] = -2*m[:, 2]*d
+    coeff_mat[:, 0, 0] = 1 - 2 * m[:, 0]**2
+    coeff_mat[:, 0, 1] = -2 * m[:, 0] * m[:, 1]
+    coeff_mat[:, 0, 2] = -2 * m[:, 0] * m[:, 2]
+    coeff_mat[:, 0, 3] = -2 * m[:, 0] * d
+    coeff_mat[:, 1, 0] = -2 * m[:, 1] * m[:, 0]
+    coeff_mat[:, 1, 1] = 1 - 2 * m[:, 1]**2
+    coeff_mat[:, 1, 2] = -2 * m[:, 1] * m[:, 2]
+    coeff_mat[:, 1, 3] = -2 * m[:, 1] * d
+    coeff_mat[:, 2, 0] = -2 * m[:, 2] * m[:, 0]
+    coeff_mat[:, 2, 1] = -2 * m[:, 2] * m[:, 1]
+    coeff_mat[:, 2, 2] = 1 - 2 * m[:, 2]**2
+    coeff_mat[:, 2, 3] = -2 * m[:, 2] * d
     return coeff_mat
+
 
 class LossKeypointsMirror2D(LossRepro):
     def __init__(self, keypoints2d, bboxes, Pall, cfg) -> None:
@@ -67,14 +83,17 @@ class LossKeypointsMirror2D(LossRepro):
         self.Pall = torch.Tensor(Pall).to(cfg.device)
         self.nJoints = keypoints2d.shape[-2]
         self.nViews, self.nFrames = self.keypoints2d.shape[0], self.keypoints2d.shape[1]
-        self.kpt_homo = torch.ones((keypoints2d.shape[0]*keypoints2d.shape[1], keypoints2d.shape[2], 1), device=cfg.device)
+        self.kpt_homo = torch.ones(
+            (keypoints2d.shape[0] * keypoints2d.shape[1], keypoints2d.shape[2], 1),
+            device=cfg.device
+        )
         self.norm = 'l2'
 
     def residual(self, kpts_est):
         # kpts_est: (2xnFrames, nJoints, 3)
         kpts_homo = torch.cat([kpts_est[..., :self.nJoints, :], self.kpt_homo], dim=2)
         point_cam = torch.einsum('ab,fnb->fna', self.Pall, kpts_homo)
-        img_points = point_cam[..., :2]/point_cam[..., 2:]
+        img_points = point_cam[..., :2] / point_cam[..., 2:]
         img_points = img_points.view(self.nViews, self.nFrames, self.nJoints, 2)
         residual = (img_points - self.keypoints2d) * self.conf
         return residual
@@ -84,12 +103,13 @@ class LossKeypointsMirror2D(LossRepro):
         # kpts_est: (2xnFrames, 25, 3)
         kpts_homo = torch.cat([kpts_est[..., :self.nJoints, :], self.kpt_homo], dim=2)
         point_cam = torch.einsum('ab,fnb->fna', self.Pall, kpts_homo)
-        img_points = point_cam[..., :2]/point_cam[..., 2:]
+        img_points = point_cam[..., :2] / point_cam[..., 2:]
         img_points = img_points.view(self.nViews, self.nFrames, self.nJoints, 2)
-        return super().__call__(img_points)/self.nViews/self.nFrames
+        return super().__call__(img_points) / self.nViews / self.nFrames
 
     def __str__(self) -> str:
         return 'Loss function for Reprojection error of Mirror'
+
 
 class LossKeypointsMirror2DDirect(LossKeypointsMirror2D):
     def __init__(self, keypoints2d, bboxes, Pall, normal=None, cfg=None, mirror=None) -> None:
@@ -124,11 +144,12 @@ class LossKeypointsMirror2DDirect(LossKeypointsMirror2D):
     def __str__(self) -> str:
         return 'Loss function for Reprojection error of Mirror '
 
+
 class LossMirrorSymmetry:
     def __init__(self, N_JOINTS=25, normal=None, cfg=None) -> None:
         idx0, idx1 = np.meshgrid(np.arange(N_JOINTS), np.arange(N_JOINTS))
         idx0, idx1 = idx0.reshape(-1), idx1.reshape(-1)
-        idx_diff = np.where(idx0!=idx1)[0]
+        idx_diff = np.where(idx0 != idx1)[0]
         self.idx00, self.idx11 = idx0[idx_diff], idx1[idx_diff]
         self.N_JOINTS = N_JOINTS
         self.idx0 = idx0
@@ -139,7 +160,7 @@ class LossMirrorSymmetry:
         else:
             self.normal = None
         self.device = cfg.device
-    
+
     def parallel_mirror(self, kpts_est, **kwargs):
         "encourage parallel to mirror"
         # kpts_est: (nFramesxnViews, nJoints, 3)
@@ -150,7 +171,7 @@ class LossMirrorSymmetry:
         kpts_in = kpts_est[nFrames:, ...]
         kpts_in = flipPoint2D(kpts_in)
         direct = kpts_in - kpts_out
-        direct_norm = direct/torch.norm(direct, dim=-1, keepdim=True)
+        direct_norm = direct / torch.norm(direct, dim=-1, keepdim=True)
         loss = torch.sum(torch.norm(torch.cross(self.normal, direct_norm), dim=2))
         return loss / nFrames / kpts_est.shape[1]
 
@@ -162,11 +183,13 @@ class LossMirrorSymmetry:
         kpts_in = kpts_est[nFrames:, ...]
         kpts_in = flipPoint2D(kpts_in)
         direct = kpts_in - kpts_out
-        direct_norm = direct/torch.norm(direct, dim=-1, keepdim=True)
-        loss = torch.sum(torch.norm(
-            torch.cross(direct_norm[:, self.idx0, :], direct_norm[:, self.idx1, :]), dim=2))/self.idx0.shape[0]
+        direct_norm = direct / torch.norm(direct, dim=-1, keepdim=True)
+        loss = torch.sum(
+            torch.
+            norm(torch.cross(direct_norm[:, self.idx0, :], direct_norm[:, self.idx1, :]), dim=2)
+        ) / self.idx0.shape[0]
         return loss / nFrames
-    
+
     def vertical_self(self, kpts_est, **kwargs):
         "encourage vertical to self"
         # kpts_est: (nFramesxnViews, nJoints, 3)
@@ -175,22 +198,27 @@ class LossMirrorSymmetry:
         kpts_in = kpts_est[nFrames:, ...]
         kpts_in = flipPoint2D(kpts_in)
         direct = kpts_in - kpts_out
-        direct_norm = direct/torch.norm(direct, dim=-1, keepdim=True)
-        mid_point = (kpts_in + kpts_out)/2
-        
-        inner = torch.abs(torch.sum((mid_point[:, self.idx00, :] - mid_point[:, self.idx11, :])*direct_norm[:, self.idx11, :], dim=2))
-        loss = torch.sum(inner)/self.idx00.shape[0]
+        direct_norm = direct / torch.norm(direct, dim=-1, keepdim=True)
+        mid_point = (kpts_in + kpts_out) / 2
+
+        inner = torch.abs(
+            torch.sum((mid_point[:, self.idx00, :] - mid_point[:, self.idx11, :]) *
+                      direct_norm[:, self.idx11, :],
+                      dim=2)
+        )
+        loss = torch.sum(inner) / self.idx00.shape[0]
         return loss / nFrames
 
     def __str__(self) -> str:
         return 'Loss function for Mirror Symmetry'
+
 
 class MirrorLoss():
     def __init__(self, N_JOINTS=25) -> None:
         N_JOINTS = min(N_JOINTS, 25)
         idx0, idx1 = np.meshgrid(np.arange(N_JOINTS), np.arange(N_JOINTS))
         idx0, idx1 = idx0.reshape(-1), idx1.reshape(-1)
-        idx_diff = np.where(idx0!=idx1)[0]
+        idx_diff = np.where(idx0 != idx1)[0]
         self.idx00, self.idx11 = idx0[idx_diff], idx1[idx_diff]
         self.N_JOINTS = N_JOINTS
         self.idx0 = idx0
@@ -206,15 +234,23 @@ class MirrorLoss():
         kpts1 = flipPoint(lKeypoints[1][..., :self.N_JOINTS, :])
         # direct: (N, 25, 3)
         direct = kpts1 - kpts0
-        direct_norm = direct/torch.norm(direct, dim=2, keepdim=True)
+        direct_norm = direct / torch.norm(direct, dim=2, keepdim=True)
         if weight_loss['parallel_self'] > 0.:
-            loss_dict['parallel_self'] += torch.sum(torch.norm(
-                torch.cross(direct_norm[:, self.idx0, :], direct_norm[:, self.idx1, :]), dim=2))/self.idx0.shape[0]
-        mid_point = (kpts0 + kpts1)/2
+            loss_dict['parallel_self'] += torch.sum(
+                torch.norm(
+                    torch.cross(direct_norm[:, self.idx0, :], direct_norm[:, self.idx1, :]), dim=2
+                )
+            ) / self.idx0.shape[0]
+        mid_point = (kpts0 + kpts1) / 2
         if weight_loss['vertical_self'] > 0:
-            inner = torch.abs(torch.sum((mid_point[:, self.idx00, :] - mid_point[:, self.idx11, :])*direct_norm[:, self.idx11, :], dim=2))
-            loss_dict['vertical_self'] += torch.sum(inner)/self.idx00.shape[0]
+            inner = torch.abs(
+                torch.sum((mid_point[:, self.idx00, :] - mid_point[:, self.idx11, :]) *
+                          direct_norm[:, self.idx11, :],
+                          dim=2)
+            )
+            loss_dict['vertical_self'] += torch.sum(inner) / self.idx00.shape[0]
         return loss_dict
+
 
 def optimizeMirrorDirect(body_model, params, bboxes, keypoints2d, Pall, normal, weight, cfg):
     """ 
@@ -238,8 +274,9 @@ def optimizeMirrorDirect(body_model, params, bboxes, keypoints2d, Pall, normal, 
         deepcopy_tensor,
         get_prepare_smplx(params, cfg, nFrames),
     ]
-    loss_repro = LossKeypointsMirror2DDirect(keypoints2d, bboxes, Pall, normal, cfg,
-        mirror=params.pop('mirror', None))
+    loss_repro = LossKeypointsMirror2DDirect(
+        keypoints2d, bboxes, Pall, normal, cfg, mirror=params.pop('mirror', None)
+    )
     loss_funcs = {
         'k2d': loss_repro,
         'init_poses': LossInit(params, cfg).init_poses,
@@ -248,13 +285,21 @@ def optimizeMirrorDirect(body_model, params, bboxes, keypoints2d, Pall, normal, 
     postprocess_funcs = [
         dict_of_tensor_to_numpy,
     ]
-    params = _optimizeSMPL(body_model, params, prepare_funcs, postprocess_funcs, loss_funcs, 
+    params = _optimizeSMPL(
+        body_model,
+        params,
+        prepare_funcs,
+        postprocess_funcs,
+        loss_funcs,
         extra_params=[loss_repro.mirror],
-        weight_loss=weight, cfg=cfg)
+        weight_loss=weight,
+        cfg=cfg
+    )
     mirror = loss_repro.mirror.detach().cpu().numpy()
     params = flipSMPLParamsV(params, mirror)
     params['mirror'] = mirror
     return params
+
 
 def viewSelection(params, body_model, loss_repro, nFrames):
     # view selection
@@ -269,11 +314,12 @@ def viewSelection(params, body_model, loss_repro, nFrames):
     residual = loss_repro.residual(kpts_est)
     res_o = torch.norm(residual, dim=-1).mean(dim=-1).sum(dim=0)
     for nf in range(res_i.shape[0]):
-        if res_i[nf] < res_o[nf]: # 使用外面的
-            params['poses'][[nFrames+nf]] = flipSMPLPoses(params['poses'][[nf]])
+        if res_i[nf] < res_o[nf]:    # 使用外面的
+            params['poses'][[nFrames + nf]] = flipSMPLPoses(params['poses'][[nf]])
         else:
-            params['poses'][[nf]] = flipSMPLPoses(params['poses'][[nFrames+nf]])
+            params['poses'][[nf]] = flipSMPLPoses(params['poses'][[nFrames + nf]])
     return params
+
 
 def optimizeMirrorSoft(body_model, params, bboxes, keypoints2d, Pall, normal, weight, cfg):
     """ 
@@ -291,8 +337,8 @@ def optimizeMirrorSoft(body_model, params, bboxes, keypoints2d, Pall, normal, we
     assert nViews == 2, 'Please make sure that there exists only 2 views'
     prepare_funcs = [
         deepcopy_tensor,
-        flipSMPLPosesV, #
-        get_prepare_smplx(params, cfg, nFrames*nViews)
+        flipSMPLPosesV,    #
+        get_prepare_smplx(params, cfg, nFrames * nViews)
     ]
     loss_sym = LossMirrorSymmetry(normal=normal, cfg=cfg)
     loss_repro = LossKeypointsMirror2D(keypoints2d, bboxes, Pall, cfg)
@@ -307,11 +353,16 @@ def optimizeMirrorSoft(body_model, params, bboxes, keypoints2d, Pall, normal, we
         'par_mirror': loss_sym.parallel_mirror,
     }
     if nFrames > 1:
-        loss_funcs['smooth_body'] = LossSmoothBodyMulti([0, nFrames, nFrames*2], cfg)
-        loss_funcs['smooth_poses'] = LossSmoothPosesMulti([0, nFrames, nFrames*2], cfg)
-    postprocess_funcs = [
-        dict_of_tensor_to_numpy,
-        flipSMPLPosesV
-    ]
-    params = _optimizeSMPL(body_model, params, prepare_funcs, postprocess_funcs, loss_funcs, weight_loss=weight, cfg=cfg)
+        loss_funcs['smooth_body'] = LossSmoothBodyMulti([0, nFrames, nFrames * 2], cfg)
+        loss_funcs['smooth_poses'] = LossSmoothPosesMulti([0, nFrames, nFrames * 2], cfg)
+    postprocess_funcs = [dict_of_tensor_to_numpy, flipSMPLPosesV]
+    params = _optimizeSMPL(
+        body_model,
+        params,
+        prepare_funcs,
+        postprocess_funcs,
+        loss_funcs,
+        weight_loss=weight,
+        cfg=cfg
+    )
     return params

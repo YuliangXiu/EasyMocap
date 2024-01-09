@@ -7,13 +7,19 @@
   @ FilePath: /EasyMocapPublic/apps/postprocess/render.py
 '''
 from os.path import join
-from easymocap.config import Config, load_object
-from easymocap.config.baseconfig import load_config_from_index, load_object_from_cmd
-from easymocap.mytools.debug_utils import mywarn, log, myerror
+
 from tqdm import tqdm
+
+from easymocap.config import Config, load_object
+from easymocap.config.baseconfig import (
+    load_config_from_index,
+    load_object_from_cmd,
+)
 from easymocap.mytools import Timer
+from easymocap.mytools.debug_utils import mywarn
 
 index = Config.load('config/render_index.yml', [])
+
 
 def vis(cfg):
     # 读入模型
@@ -23,7 +29,9 @@ def vis(cfg):
     inputs = load_object(cfg.input_module, cfg.input_args)
     outputs = load_object(cfg.output_module, cfg.output_args)
     silent = True
-    for nf in tqdm(range(cfg.ranges[0], min(cfg.ranges[1], len(results)), cfg.ranges[2]), desc='vis'):
+    for nf in tqdm(
+        range(cfg.ranges[0], min(cfg.ranges[1], len(results)), cfg.ranges[2]), desc='vis'
+    ):
         with Timer('result', silent):
             basename, result = results[nf]
         with Timer('inputs', silent):
@@ -33,6 +41,7 @@ def vis(cfg):
     if cfg.make_video:
         video = load_object(cfg.video_module, cfg.video_args)
         video.make_video(cfg.output_args.out)
+
 
 if __name__ == '__main__':
     import argparse

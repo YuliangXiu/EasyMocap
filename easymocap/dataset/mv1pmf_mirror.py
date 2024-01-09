@@ -5,30 +5,54 @@
   @ LastEditTime: 2021-04-14 11:26:36
   @ FilePath: /EasyMocapRelease/easymocap/dataset/mv1pmf_mirror.py
 '''
-import os
 from os.path import join
+
 import numpy as np
-import cv2
-from .base import ImageFolder
-from .mv1pmf import MVBase
-from .mirror import calc_mirror_transform, flipSMPLParams, mirrorPoint3D, flipPoint2D, mirror_Rh
+
 from ..mytools.file_utils import get_bbox_from_pose, read_json
+from .base import ImageFolder
+from .mirror import (
+    calc_mirror_transform,
+    flipPoint2D,
+    flipSMPLParams,
+    mirrorPoint3D,
+)
+from .mv1pmf import MVBase
+
 
 class MV1PMF_Mirror(MVBase):
-    def __init__(self, root, cams=[], pid=0, out=None, config={}, 
-        image_root='images', annot_root='annots', kpts_type='body15',
-        undis=True, no_img=False,
-        verbose=False) -> None:
+    def __init__(
+        self,
+        root,
+        cams=[],
+        pid=0,
+        out=None,
+        config={},
+        image_root='images',
+        annot_root='annots',
+        kpts_type='body15',
+        undis=True,
+        no_img=False,
+        verbose=False
+    ) -> None:
         self.mirror = np.array([[0., 1., 0., 0.]])
-        super().__init__(root=root, cams=cams, out=out, config=config, 
-            image_root=image_root, annot_root=annot_root, 
-            kpts_type=kpts_type, undis=undis, no_img=no_img)
+        super().__init__(
+            root=root,
+            cams=cams,
+            out=out,
+            config=config,
+            image_root=image_root,
+            annot_root=annot_root,
+            kpts_type=kpts_type,
+            undis=undis,
+            no_img=no_img
+        )
         self.pid = pid
         self.verbose = False
 
     def __str__(self) -> str:
         return 'Dataset for MultiMirror: {} views'.format(len(self.cams))
-    
+
     def write_keypoints3d(self, keypoints3d, nf):
         results = []
         M = self.Mirror[0]
@@ -57,41 +81,42 @@ class MV1PMF_Mirror(MVBase):
         results.append(val)
         self.writer.write_smpl(results, outname)
 
-    def vis_smpl(self, vertices, faces, images, nf, sub_vis=[], 
-        mode='smpl', extra_data=[], add_back=True):
+    def vis_smpl(
+        self, vertices, faces, images, nf, sub_vis=[], mode='smpl', extra_data=[], add_back=True
+    ):
         outname = join(self.out, 'smpl', '{:06d}.jpg'.format(nf))
         render_data = {}
         if len(vertices.shape) == 3:
             vertices = vertices[0]
         pid = self.pid
-        render_data[pid] = {'vertices': vertices, 'faces': faces, 
-            'vid': pid, 'name': 'human_{}_{}'.format(nf, pid)}
+        render_data[pid] = {
+            'vertices': vertices, 'faces': faces, 'vid': pid, 'name': 'human_{}_{}'.format(nf, pid)
+        }
         vertices_m = mirrorPoint3D(vertices, self.Mirror[0])
-        render_data[pid+1] = {'vertices': vertices_m, 'faces': faces, 
-            'vid': pid, 'name': 'human_mirror_{}_{}'.format(nf, pid)}
-        
-        cameras = {'K': [], 'R':[], 'T':[]}
+        render_data[pid + 1] = {
+            'vertices': vertices_m, 'faces': faces, 'vid': pid, 'name':
+            'human_mirror_{}_{}'.format(nf, pid)
+        }
+
+        cameras = {'K': [], 'R': [], 'T': []}
         if len(sub_vis) == 0:
             sub_vis = self.cams
         for key in cameras.keys():
             cameras[key] = [self.cameras[cam][key] for cam in sub_vis]
         images = [images[self.cams.index(cam)] for cam in sub_vis]
         self.writer.vis_smpl(render_data, images, cameras, outname, add_back=add_back)
-    
+
     def vis_detections(self, images, annots, nf, to_img=True, sub_vis=[]):
         outname = join(self.out, 'detec', '{:06d}.jpg'.format(nf))
         lDetections = []
         nViews = len(images)
         for nv in range(len(images)):
             det = {
-                'id': self.pid,
-                'bbox': annots['bbox'][nv],
-                'keypoints2d': annots['keypoints'][nv]
+                'id': self.pid, 'bbox': annots['bbox'][nv], 'keypoints2d': annots['keypoints'][nv]
             }
             det_m = {
-                'id': self.pid + 1,
-                'bbox': annots['bbox'][nv+nViews],
-                'keypoints2d': annots['keypoints'][nv+nViews]
+                'id': self.pid + 1, 'bbox': annots['bbox'][nv + nViews], 'keypoints2d':
+                annots['keypoints'][nv + nViews]
             }
             lDetections.append([det, det_m])
         if len(sub_vis) != 0:
@@ -105,14 +130,12 @@ class MV1PMF_Mirror(MVBase):
         lDetections = []
         for nv in range(len(images)):
             det = {
-                'id': -1,
-                'keypoints2d': kpts_repro[nv],
-                'bbox': get_bbox_from_pose(kpts_repro[nv], images[nv])
+                'id': -1, 'keypoints2d': kpts_repro[nv], 'bbox':
+                get_bbox_from_pose(kpts_repro[nv], images[nv])
             }
             det_mirror = {
-                'id': -1,
-                'keypoints2d': kpts_repro[nv+len(images)],
-                'bbox': get_bbox_from_pose(kpts_repro[nv+len(images)], images[nv])
+                'id': -1, 'keypoints2d': kpts_repro[nv + len(images)], 'bbox':
+                get_bbox_from_pose(kpts_repro[nv + len(images)], images[nv])
             }
             lDetections.append([det, det_mirror])
         if len(sub_vis) != 0:
@@ -138,7 +161,7 @@ class MV1PMF_Mirror(MVBase):
         Pall_mirror = np.einsum('bmn,bno->bmo', value, M)
         Pall = np.vstack((value, Pall_mirror))
         self.Pall_ = Pall
-        
+
     def __getitem__(self, index: int):
         images, annots_all = super().__getitem__(index)
         annots0 = self.select_person(annots_all, index, self.pid)
@@ -147,9 +170,11 @@ class MV1PMF_Mirror(MVBase):
         # stack it as only one person
         annots = {
             'bbox': np.vstack([annots0['bbox'], annots1['bbox']]),
-            'keypoints': np.vstack([annots0['keypoints'], flipPoint2D(annots1['keypoints'])]),
+            'keypoints': np.vstack([annots0['keypoints'],
+                                    flipPoint2D(annots1['keypoints'])]),
         }
         return images, annots
+
 
 class ImageFolderMirror(ImageFolder):
     def normal(self, nf):
@@ -184,6 +209,7 @@ class ImageFolderMirror(ImageFolder):
         else:
             normals = None
         return normals
+
 
 if __name__ == "__main__":
     pass

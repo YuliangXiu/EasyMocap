@@ -6,11 +6,14 @@
   @ LastEditTime: 2022-07-25 21:59:29
   @ FilePath: /EasyMocapPublic/apps/preprocess/merge_or_split.py
 '''
-import shutil
-from easymocap.mytools.debug_utils import log, mkdir, mywarn, run_cmd
 import os
+import shutil
 from os.path import join
+
 from tqdm import tqdm
+
+from easymocap.mytools.debug_utils import log, mkdir
+
 
 def merge_directories(root, out):
     mkdir(join(out, 'images', 'merge'))
@@ -35,6 +38,7 @@ def merge_directories(root, out):
         for (seq, sub, imgname) in tqdm(records, 'writing'):
             f.write('{},{},{}\r\n'.format(seq, sub, imgname))
 
+
 def split_directories(root, out):
     with open(join(out, 'log.txt'), 'r') as f:
         records = f.readlines()
@@ -46,7 +50,7 @@ def split_directories(root, out):
         if not os.path.exists(os.path.dirname(dstname)):
             os.makedirs(os.path.dirname(dstname))
         shutil.copyfile(srcname, dstname)
-        
+
 
 if __name__ == '__main__':
     import argparse
@@ -61,4 +65,3 @@ if __name__ == '__main__':
         merge_directories(args.root, args.out)
     if args.split:
         split_directories(args.root, args.out)
-    

@@ -1,36 +1,37 @@
-import numpy as np
 import cv2
 import mediapipe as mp
+import numpy as np
+
 mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
 mp_holistic = mp.solutions.holistic
 from ..mytools import Timer
 
+
 def bbox_from_keypoints(keypoints, rescale=1.2, detection_thresh=0.05, MIN_PIXEL=5):
     """Get center and scale for bounding box from openpose detections."""
-    valid = keypoints[:,-1] > detection_thresh
+    valid = keypoints[:, -1] > detection_thresh
     if valid.sum() < 3:
         return [0, 0, 100, 100, 0]
-    valid_keypoints = keypoints[valid][:,:-1]
-    center = (valid_keypoints.max(axis=0) + valid_keypoints.min(axis=0))/2
+    valid_keypoints = keypoints[valid][:, :-1]
+    center = (valid_keypoints.max(axis=0) + valid_keypoints.min(axis=0)) / 2
     bbox_size = valid_keypoints.max(axis=0) - valid_keypoints.min(axis=0)
     # adjust bounding box tightness
     if bbox_size[0] < MIN_PIXEL or bbox_size[1] < MIN_PIXEL:
         return [0, 0, 100, 100, 0]
     bbox_size = bbox_size * rescale
     bbox = [
-        center[0] - bbox_size[0]/2, 
-        center[1] - bbox_size[1]/2,
-        center[0] + bbox_size[0]/2, 
-        center[1] + bbox_size[1]/2,
-        keypoints[valid, 2].mean()
+        center[0] - bbox_size[0] / 2, center[1] - bbox_size[1] / 2, center[0] + bbox_size[0] / 2,
+        center[1] + bbox_size[1] / 2, keypoints[valid, 2].mean()
     ]
     return bbox
+
 
 class Detector:
     NUM_BODY = 33
     NUM_HAND = 21
     NUM_FACE = 468
+
     def __init__(self, nViews, to_openpose, model_type, show=False, **cfg) -> None:
         self.nViews = nViews
         self.to_openpose = to_openpose
@@ -38,7 +39,10 @@ class Detector:
         self.show = show
         if self.to_openpose:
             self.NUM_BODY = 25
-            self.openpose25_in_33 = [0, 0, 12, 14, 16, 11, 13, 15, 0, 24, 26, 28, 23, 25, 27, 5, 2, 8, 7, 31, 31, 29, 32, 32, 30]
+            self.openpose25_in_33 = [
+                0, 0, 12, 14, 16, 11, 13, 15, 0, 24, 26, 28, 23, 25, 27, 5, 2, 8, 7, 31, 31, 29, 32,
+                32, 30
+            ]
         if model_type == 'holistic':
             model_name = mp_holistic.Holistic
         elif model_type == 'pose':
@@ -51,18 +55,16 @@ class Detector:
             model_name = mp.solutions.hands.Hands
         else:
             raise NotImplementedError
-        self.models = [
-            model_name(**cfg) for nv in range(nViews)
-        ]
-    
+        self.models = [model_name(**cfg) for nv in range(nViews)]
+
     @staticmethod
     def to_array(pose, W, H, start=0):
         N = len(pose.landmark) - start
         res = np.zeros((N, 3))
         for i in range(start, len(pose.landmark)):
-            res[i-start, 0] = pose.landmark[i].x * W
-            res[i-start, 1] = pose.landmark[i].y * H
-            res[i-start, 2] = pose.landmark[i].visibility
+            res[i - start, 0] = pose.landmark[i].x * W
+            res[i - start, 1] = pose.landmark[i].y * H
+            res[i - start, 2] = pose.landmark[i].visibility
         return res
 
     def get_body(self, pose, W, H):
@@ -77,7 +79,7 @@ class Detector:
             poses[1, :2] = poses[[2, 5], :2].mean(axis=0)
             poses[1, 2] = poses[[2, 5], 2].min(axis=0)
         return poses, bbox_from_keypoints(poses)
-    
+
     def get_hand(self, pose, W, H):
         if pose is None:
             bodies = np.zeros((self.NUM_HAND, 3))
@@ -95,8 +97,8 @@ class Detector:
         return poses, bbox_from_keypoints(poses)
 
     def vis(self, image, annots, nv=0):
-        from easymocap.mytools.vis_base import plot_keypoints
         from easymocap.dataset.config import CONFIG
+        from easymocap.mytools.vis_base import plot_keypoints
         annots = annots['annots'][0]
         if 'keypoints' in annots.keys():
             kpts = annots['keypoints']
@@ -109,7 +111,13 @@ class Detector:
             kpts = annots['face2d']
             plot_keypoints(image, kpts, 0, CONFIG['mpface'], use_limb_color=False)
             if len(kpts) > 468:
-                plot_keypoints(image, kpts[468:], 0, {'kintree': [[4, 1], [1, 2], [2, 3], [3, 4], [9, 6], [6, 7], [7, 8], [8, 9]]}, use_limb_color=False)
+                plot_keypoints(
+                    image,
+                    kpts[468:],
+                    0,
+                    {'kintree': [[4, 1], [1, 2], [2, 3], [3, 4], [9, 6], [6, 7], [7, 8], [8, 9]]},
+                    use_limb_color=False
+                )
         if 'handl2d' in annots.keys():
             kpts = annots['handl2d']
             plot_keypoints(image, kpts, 1, CONFIG['hand'], use_limb_color=True)
@@ -124,7 +132,7 @@ class Detector:
             keypoints, bbox = self.get_body(results.pose_landmarks, image_width, image_height)
             data['keypoints'] = keypoints
             data['bbox'] = bbox
-    
+
     def process_hand(self, data, results, image_width, image_height):
         lm = {'Left': None, 'Right': None}
         if self.model_type in ['hand', 'handl', 'handr']:
@@ -160,7 +168,7 @@ class Detector:
             if self.model_type in ['hand', 'handr', 'holistic']:
                 data['handr2d'] = handr.tolist()
                 data['bbox_handr2d'] = bbox_handr
-    
+
     def process_face(self, data, results, image_width, image_height, image=None):
         if self.model_type == 'holistic':
             face2d, bbox_face2d = self.get_face(results.face_landmarks, image_width, image_height)
@@ -194,19 +202,15 @@ class Detector:
             with Timer('- face', True):
                 self.process_face(data, results, image_width, image_height, image=image)
             annots = {
-                'filename': '{}/run.jpg'.format(nv),
-                'height': image_height,
-                'width': image_width,
-                'annots': [
-                    data
-                ],
-                'isKeyframe': False
+                'filename': '{}/run.jpg'.format(nv), 'height': image_height, 'width': image_width,
+                'annots': [data], 'isKeyframe': False
             }
             if self.show:
                 self.vis(image_, annots, nv)
             annots_all.append(annots)
             # results.face_landmarks
         return annots_all
+
 
 def extract_2d(image_root, annot_root, config, mode='holistic'):
     from .wrapper_base import check_result, save_annot
@@ -217,20 +221,22 @@ def extract_2d(image_root, annot_root, config, mode='holistic'):
     from os.path import join
     ext = config.pop('ext')
     import os
+
     from tqdm import tqdm
     if mode == 'holistic' or mode == 'pose':
         to_openpose = True
     else:
         to_openpose = False
     detector = Detector(nViews=1, to_openpose=to_openpose, model_type=mode, show=False, **config)
-    imgnames = sorted(glob(join(image_root, '*'+ext)))
+    imgnames = sorted(glob(join(image_root, '*' + ext)))
     for imgname in tqdm(imgnames, desc='{:10s}'.format(os.path.basename(annot_root))):
         base = os.path.basename(imgname).replace(ext, '')
-        annotname = join(annot_root, base+'.json')
+        annotname = join(annot_root, base + '.json')
         image = cv2.imread(imgname)
         annots = detector([image])[0]
         annots['filename'] = os.sep.join(imgname.split(os.sep)[-2:])
         save_annot(annotname, annots)
+
 
 if __name__ == "__main__":
     import argparse
@@ -246,9 +252,8 @@ if __name__ == "__main__":
     from os.path import join
     imgnames = sorted(glob(join(path, '*.jpg')))
     with mp_hands.Hands(
-        model_complexity=1,
-        min_detection_confidence=0.5,
-        min_tracking_confidence=0.5) as hands:
+        model_complexity=1, min_detection_confidence=0.5, min_tracking_confidence=0.5
+    ) as hands:
         for imgname in imgnames:
             image = cv2.imread(imgname)
             # To improve performance, optionally mark the image as not writeable to
@@ -263,11 +268,10 @@ if __name__ == "__main__":
             if results.multi_hand_landmarks:
                 for hand_landmarks in results.multi_hand_landmarks:
                     mp_drawing.draw_landmarks(
-                        image,
-                        hand_landmarks,
-                        mp_hands.HAND_CONNECTIONS,
+                        image, hand_landmarks, mp_hands.HAND_CONNECTIONS,
                         mp_drawing_styles.get_default_hand_landmarks_style(),
-                        mp_drawing_styles.get_default_hand_connections_style())
+                        mp_drawing_styles.get_default_hand_connections_style()
+                    )
             # Flip the image horizontally for a selfie-view display.
             cv2.imshow('MediaPipe Hands', image)
             if cv2.waitKey(5) & 0xFF == 27:

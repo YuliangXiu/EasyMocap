@@ -1,13 +1,16 @@
-from tqdm import tqdm
-import cv2
 import os
-from easymocap.visualize.pyrender_wrapper import plot_meshes
 from os.path import join
+
+import cv2
 import numpy as np
-from easymocap.datasets.base import add_logo
-from easymocap.mytools.vis_base import merge, plot_bbox
+from tqdm import tqdm
+
 from easymocap.mytools.camera_utils import Undistort
+from easymocap.mytools.vis_base import merge, plot_bbox
+from easymocap.visualize.pyrender_wrapper import plot_meshes
+
 from .vis import VisBase
+
 
 class Render(VisBase):
     def __init__(self, name='render', scale=0.5, backend='pyrender', **kwargs) -> None:

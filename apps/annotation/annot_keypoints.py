@@ -5,16 +5,32 @@
   @ LastEditTime: 2022-05-24 14:27:46
   @ FilePath: /EasyMocapPublic/apps/annotation/annot_keypoints.py
 '''
-from easymocap.annotator.basic_visualize import capture_screen, plot_skeleton_factory, resize_to_screen
-import os
-from os.path import join
 import numpy as np
-from easymocap.annotator import ImageFolder
-from easymocap.annotator import AnnotBase
-from easymocap.annotator import callback_select_bbox_corner, callback_select_bbox_center
-from easymocap.annotator import plot_text, plot_bbox_body, plot_bbox_factory, vis_active_bbox, vis_bbox, plot_skeleton
+
+from easymocap.annotator import (
+    AnnotBase,
+    ImageFolder,
+    callback_select_bbox_center,
+    callback_select_bbox_corner,
+    plot_bbox_factory,
+    plot_text,
+    vis_active_bbox,
+    vis_bbox,
+)
+from easymocap.annotator.basic_visualize import (
+    capture_screen,
+    plot_skeleton_factory,
+    resize_to_screen,
+)
 from easymocap.annotator.keypoints_callback import callback_select_joints
-from easymocap.annotator.keypoints_keyboard import set_unvisible, set_unvisible_according_previous, set_face_unvisible, check_track, mirror_keypoints2d, mirror_keypoints2d_leg
+from easymocap.annotator.keypoints_keyboard import (
+    check_track,
+    mirror_keypoints2d,
+    mirror_keypoints2d_leg,
+    set_unvisible,
+    set_unvisible_according_previous,
+)
+
 
 class Estimator:
     def __init__(self) -> None:
@@ -22,9 +38,7 @@ class Estimator:
         device = torch.device('cuda')
         from easymocap.estimator.HRNet import SimpleHRNet
         config = {
-            'nof_joints': 17,
-            'c': 48,
-            'checkpoint_path': 'data/models/pose_hrnet_w48_384x288.pth'
+            'nof_joints': 17, 'c': 48, 'checkpoint_path': 'data/models/pose_hrnet_w48_384x288.pth'
         }
         self.pose_estimator = SimpleHRNet(device=device, **config)
 
@@ -39,7 +53,7 @@ class Estimator:
         # annots['keypoints'][:19] = res[:19].tolist()
         annots['keypoints'] = res.tolist()
         return res
-    
+
     def _detect_with_previous(self, annotator, param, sigma):
         select = param['select']['bbox']
         if select == -1:
@@ -58,11 +72,11 @@ class Estimator:
         # annots['keypoints'][:19] = res[:19].tolist()
         annots['keypoints'] = res.tolist()
         return res
-    
+
     def detect_with_previous_slow(self, annotator, param):
         "detect_with_previous_slow"
         self._detect_with_previous(annotator, param, sigma=1)
-    
+
     def detect_with_previous_mid(self, annotator, param):
         "detect_with_previous_mid"
         self._detect_with_previous(annotator, param, sigma=3)
@@ -73,18 +87,19 @@ class Estimator:
     def detect_with_bbox(self, annotator, param):
         "detect"
         self._detect_with_bbox(param, 0)
-    
+
     def detect_with_bbox90(self, annotator, param):
         "detect 90"
         self._detect_with_bbox(param, 90)
-    
+
     def detect_with_bbox180(self, annotator, param):
         "detect 90"
         self._detect_with_bbox(param, 180)
-    
+
     def detect_with_bbox270(self, annotator, param):
         "detect 90"
         self._detect_with_bbox(param, -90)
+
 
 def annot_example(path, sub, image, annot, step, args):
     # define datasets
@@ -92,7 +107,7 @@ def annot_example(path, sub, image, annot, step, args):
     key_funcs = {
         'v': set_unvisible,
         'V': set_unvisible_according_previous,
-        # 'f': set_face_unvisible,
+    # 'f': set_face_unvisible,
         'c': check_track,
         'm': mirror_keypoints2d,
         'M': mirror_keypoints2d_leg,
@@ -112,26 +127,39 @@ def annot_example(path, sub, image, annot, step, args):
     # define visualize
     vis_funcs = [plot_skeleton_factory('body25'), vis_bbox, vis_active_bbox]
     if args.hand:
-        vis_funcs += [plot_bbox_factory('bbox_handl2d'), plot_bbox_factory('bbox_handr2d'), plot_bbox_factory('bbox_face2d')]
-        vis_funcs += [plot_skeleton_factory('handl'), plot_skeleton_factory('handr'), plot_skeleton_factory('face')]
+        vis_funcs += [
+            plot_bbox_factory('bbox_handl2d'),
+            plot_bbox_factory('bbox_handr2d'),
+            plot_bbox_factory('bbox_face2d')
+        ]
+        vis_funcs += [
+            plot_skeleton_factory('handl'),
+            plot_skeleton_factory('handr'),
+            plot_skeleton_factory('face')
+        ]
     vis_funcs += [resize_to_screen, plot_text, capture_screen]
     # construct annotations
     annotator = AnnotBase(
-        dataset=dataset, 
+        dataset=dataset,
         key_funcs=key_funcs,
         vis_funcs=vis_funcs,
         callbacks=callbacks,
         name=sub,
-        step=step)
+        step=step
+    )
     while annotator.isOpen:
         annotator.run()
+
 
 if __name__ == "__main__":
     from easymocap.annotator import load_parser, parse_parser
     parser = load_parser()
     parser.add_argument('--hand', action='store_true')
-    parser.add_argument('--hrnet', action='store_true', 
-        help='loading HRNet model to detect human pose')
+    parser.add_argument(
+        '--hrnet', action='store_true', help='loading HRNet model to detect human pose'
+    )
     args = parse_parser(parser)
     for sub in args.sub:
-        annot_example(args.path, image=args.image, annot=args.annot, sub=sub, step=args.step, args=args)
+        annot_example(
+            args.path, image=args.image, annot=args.annot, sub=sub, step=args.step, args=args
+        )

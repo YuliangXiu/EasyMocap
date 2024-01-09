@@ -5,15 +5,27 @@
   @ LastEditTime: 2021-07-16 14:45:27
   @ FilePath: /EasyMocap/apps/annotation/annot_vanish.py
 '''
+from easymocap.annotator import (
+    AnnotBase,
+    ImageFolder,
+    plot_skeleton,
+    plot_text,
+    vis_line,
+)
 # This script shows an example to annotate vanishing lines
 from easymocap.annotator.file_utils import read_json, save_annot
-from easymocap.annotator import ImageFolder
-from easymocap.annotator import plot_text, vis_active_bbox, vis_line, plot_skeleton
-from easymocap.annotator import AnnotBase
-from easymocap.annotator.vanish_callback import get_record_vanish_lines, get_calc_intrinsic, clear_vanish_points, vanish_point_from_body, copy_edges, clear_body_points
+from easymocap.annotator.vanish_callback import (
+    clear_body_points,
+    clear_vanish_points,
+    copy_edges,
+    get_calc_intrinsic,
+    get_record_vanish_lines,
+    vanish_point_from_body,
+)
 from easymocap.annotator.vanish_visualize import vis_vanish_lines
 
 edges_cache = {}
+
 
 def copy_edges_from_cache(self, param, **kwargs):
     "copy the static edges from previous sub"
@@ -23,29 +35,20 @@ def copy_edges_from_cache(self, param, **kwargs):
             continue
         annots[key] = edges_cache[key]
 
+
 def annot_example(path, annot, sub=None, step=100):
     # define datasets
     dataset = ImageFolder(path, sub=sub, annot=annot)
     key_funcs = {
-        'X': get_record_vanish_lines(0),
-        'Y': get_record_vanish_lines(1),
-        'Z': get_record_vanish_lines(2),
-        'k': get_calc_intrinsic('xy'),
-        'K': get_calc_intrinsic('yz'),
-        'b': vanish_point_from_body,
-        'C': clear_vanish_points,
-        'B': clear_body_points,
-        'c': copy_edges_from_cache,
-        'v': copy_edges
+        'X': get_record_vanish_lines(0), 'Y': get_record_vanish_lines(1), 'Z':
+        get_record_vanish_lines(2), 'k': get_calc_intrinsic('xy'), 'K': get_calc_intrinsic('yz'),
+        'b': vanish_point_from_body, 'C': clear_vanish_points, 'B': clear_body_points, 'c':
+        copy_edges_from_cache, 'v': copy_edges
     }
     # define visualize
     vis_funcs = [vis_line, plot_skeleton, vis_vanish_lines, plot_text]
     # construct annotations
-    annotator = AnnotBase(
-        dataset=dataset, 
-        key_funcs=key_funcs,
-        vis_funcs=vis_funcs,
-        step=step)
+    annotator = AnnotBase(dataset=dataset, key_funcs=key_funcs, vis_funcs=vis_funcs, step=step)
     annots = annotator.param['annots']
     print(sub)
     annotator.run('X')
@@ -61,6 +64,7 @@ def annot_example(path, annot, sub=None, step=100):
         annotator.run()
     for key in ['vanish_line', 'vanish_point']:
         edges_cache[key] = annotator.param['annots'][key]
+
 
 if __name__ == "__main__":
     from easymocap.annotator import load_parser, parse_parser

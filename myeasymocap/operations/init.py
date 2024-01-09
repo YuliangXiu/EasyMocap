@@ -1,6 +1,7 @@
-from typing import Any
 import numpy as np
-from easymocap.mytools.debug_utils import mywarn, log
+
+from easymocap.mytools.debug_utils import log, mywarn
+
 
 def solve_translation(X, x, K):
     A = np.zeros((2*X.shape[0], 3))

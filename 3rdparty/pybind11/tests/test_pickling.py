@@ -14,7 +14,7 @@ def test_roundtrip(cls_name):
     p.setExtra1(15)
     p.setExtra2(48)
 
-    data = pickle.dumps(p, 2)  # Must use pickle protocol >= 2
+    data = pickle.dumps(p, 2)    # Must use pickle protocol >= 2
     p2 = pickle.loads(data)
     assert p2.value() == p.value()
     assert p2.extra1() == p.extra1()

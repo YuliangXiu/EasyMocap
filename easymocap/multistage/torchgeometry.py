@@ -4,12 +4,12 @@ quaternion representation: (w,x,y,z)
 code reference: torchgeometry, kornia, https://github.com/MandyMo/pytorch_HMR.
 """
 
+import numpy as np
 import torch
 from torch.nn import functional as F
-import numpy as np
-
 
 # Conversions between different rotation representations, quaternion,rotation matrix,euler and axis angle.
+
 
 def rot6d_to_rotation_matrix(rot6d):
     """
@@ -56,16 +56,20 @@ def quaternion_to_rotation_matrix(quaternion):
     norm_quaternion = norm_quaternion / \
         norm_quaternion.norm(p=2, dim=1, keepdim=True)
     w, x, y, z = norm_quaternion[:, 0], norm_quaternion[:,
-                                                        1], norm_quaternion[:, 2], norm_quaternion[:, 3]
+                                                        1], norm_quaternion[:,
+                                                                            2], norm_quaternion[:,
+                                                                                                3]
 
     batch_size = quaternion.size(0)
     w2, x2, y2, z2 = w.pow(2), x.pow(2), y.pow(2), z.pow(2)
-    wx, wy, wz = w*x, w*y, w*z
-    xy, xz, yz = x*y, x*z, y*z
+    wx, wy, wz = w * x, w * y, w * z
+    xy, xz, yz = x * y, x * z, y * z
 
-    rotation_matrix = torch.stack([w2 + x2 - y2 - z2, 2*xy - 2*wz, 2*wy + 2*xz,
-                                   2*wz + 2*xy, w2 - x2 + y2 - z2, 2*yz - 2*wx,
-                                   2*xz - 2*wy, 2*wx + 2*yz, w2 - x2 - y2 + z2], dim=1).view(batch_size, 3, 3)
+    rotation_matrix = torch.stack([
+        w2 + x2 - y2 - z2, 2 * xy - 2 * wz, 2 * wy + 2 * xz, 2 * wz + 2 * xy, w2 - x2 + y2 - z2,
+        2 * yz - 2 * wx, 2 * xz - 2 * wy, 2 * wx + 2 * yz, w2 - x2 - y2 + z2
+    ],
+                                  dim=1).view(batch_size, 3, 3)
     return rotation_matrix
 
 
@@ -85,41 +89,47 @@ def rotation_matrix_to_quaternion(rotation_matrix, eps=1e-6):
     mask_d0_nd1 = rmat_t[:, 0, 0] < -rmat_t[:, 1, 1]
 
     t0 = 1 + rmat_t[:, 0, 0] - rmat_t[:, 1, 1] - rmat_t[:, 2, 2]
-    q0 = torch.stack([rmat_t[:, 1, 2] - rmat_t[:, 2, 1],
-                      t0, rmat_t[:, 0, 1] + rmat_t[:, 1, 0],
-                      rmat_t[:, 2, 0] + rmat_t[:, 0, 2]], -1)
+    q0 = torch.stack([
+        rmat_t[:, 1, 2] - rmat_t[:, 2, 1], t0, rmat_t[:, 0, 1] + rmat_t[:, 1, 0],
+        rmat_t[:, 2, 0] + rmat_t[:, 0, 2]
+    ], -1)
     t0_rep = t0.repeat(4, 1).t()
 
     t1 = 1 - rmat_t[:, 0, 0] + rmat_t[:, 1, 1] - rmat_t[:, 2, 2]
-    q1 = torch.stack([rmat_t[:, 2, 0] - rmat_t[:, 0, 2],
-                      rmat_t[:, 0, 1] + rmat_t[:, 1, 0],
-                      t1, rmat_t[:, 1, 2] + rmat_t[:, 2, 1]], -1)
+    q1 = torch.stack([
+        rmat_t[:, 2, 0] - rmat_t[:, 0, 2], rmat_t[:, 0, 1] + rmat_t[:, 1, 0], t1,
+        rmat_t[:, 1, 2] + rmat_t[:, 2, 1]
+    ], -1)
     t1_rep = t1.repeat(4, 1).t()
 
     t2 = 1 - rmat_t[:, 0, 0] - rmat_t[:, 1, 1] + rmat_t[:, 2, 2]
-    q2 = torch.stack([rmat_t[:, 0, 1] - rmat_t[:, 1, 0],
-                      rmat_t[:, 2, 0] + rmat_t[:, 0, 2],
-                      rmat_t[:, 1, 2] + rmat_t[:, 2, 1], t2], -1)
+    q2 = torch.stack([
+        rmat_t[:, 0, 1] - rmat_t[:, 1, 0], rmat_t[:, 2, 0] + rmat_t[:, 0, 2],
+        rmat_t[:, 1, 2] + rmat_t[:, 2, 1], t2
+    ], -1)
     t2_rep = t2.repeat(4, 1).t()
 
     t3 = 1 + rmat_t[:, 0, 0] + rmat_t[:, 1, 1] + rmat_t[:, 2, 2]
-    q3 = torch.stack([t3, rmat_t[:, 1, 2] - rmat_t[:, 2, 1],
-                      rmat_t[:, 2, 0] - rmat_t[:, 0, 2],
-                      rmat_t[:, 0, 1] - rmat_t[:, 1, 0]], -1)
+    q3 = torch.stack([
+        t3, rmat_t[:, 1, 2] - rmat_t[:, 2, 1], rmat_t[:, 2, 0] - rmat_t[:, 0, 2],
+        rmat_t[:, 0, 1] - rmat_t[:, 1, 0]
+    ], -1)
     t3_rep = t3.repeat(4, 1).t()
 
     mask_c0 = mask_d2 * mask_d0_d1
-    mask_c1 = mask_d2 * (~ mask_d0_d1)
-    mask_c2 = (~ mask_d2) * mask_d0_nd1
-    mask_c3 = (~ mask_d2) * (~ mask_d0_nd1)
+    mask_c1 = mask_d2 * (~mask_d0_d1)
+    mask_c2 = (~mask_d2) * mask_d0_nd1
+    mask_c3 = (~mask_d2) * (~mask_d0_nd1)
     mask_c0 = mask_c0.view(-1, 1).type_as(q0)
     mask_c1 = mask_c1.view(-1, 1).type_as(q1)
     mask_c2 = mask_c2.view(-1, 1).type_as(q2)
     mask_c3 = mask_c3.view(-1, 1).type_as(q3)
 
     q = q0 * mask_c0 + q1 * mask_c1 + q2 * mask_c2 + q3 * mask_c3
-    q /= torch.sqrt(t0_rep * mask_c0 + t1_rep * mask_c1 +  # noqa
-                    t2_rep * mask_c2 + t3_rep * mask_c3)  # noqa
+    q /= torch.sqrt(
+        t0_rep * mask_c0 + t1_rep * mask_c1 +    # noqa
+        t2_rep * mask_c2 + t3_rep * mask_c3
+    )    # noqa
     q *= 0.5
     return q
 
@@ -144,35 +154,29 @@ def quaternion_to_euler(quaternion, order, epsilon=0):
     q3 = q[:, 3]
 
     if order == 'xyz':
-        x = torch.atan2(2 * (q0 * q1 - q2 * q3), 1 - 2*(q1 * q1 + q2 * q2))
-        y = torch.asin(torch.clamp(
-            2 * (q1 * q3 + q0 * q2), -1+epsilon, 1-epsilon))
-        z = torch.atan2(2 * (q0 * q3 - q1 * q2), 1 - 2*(q2 * q2 + q3 * q3))
+        x = torch.atan2(2 * (q0 * q1 - q2 * q3), 1 - 2 * (q1 * q1 + q2 * q2))
+        y = torch.asin(torch.clamp(2 * (q1 * q3 + q0 * q2), -1 + epsilon, 1 - epsilon))
+        z = torch.atan2(2 * (q0 * q3 - q1 * q2), 1 - 2 * (q2 * q2 + q3 * q3))
     elif order == 'yzx':
-        x = torch.atan2(2 * (q0 * q1 - q2 * q3), 1 - 2*(q1 * q1 + q3 * q3))
-        y = torch.atan2(2 * (q0 * q2 - q1 * q3), 1 - 2*(q2 * q2 + q3 * q3))
-        z = torch.asin(torch.clamp(
-            2 * (q1 * q2 + q0 * q3), -1+epsilon, 1-epsilon))
+        x = torch.atan2(2 * (q0 * q1 - q2 * q3), 1 - 2 * (q1 * q1 + q3 * q3))
+        y = torch.atan2(2 * (q0 * q2 - q1 * q3), 1 - 2 * (q2 * q2 + q3 * q3))
+        z = torch.asin(torch.clamp(2 * (q1 * q2 + q0 * q3), -1 + epsilon, 1 - epsilon))
     elif order == 'zxy':
-        x = torch.asin(torch.clamp(
-            2 * (q0 * q1 + q2 * q3), -1+epsilon, 1-epsilon))
-        y = torch.atan2(2 * (q0 * q2 - q1 * q3), 1 - 2*(q1 * q1 + q2 * q2))
-        z = torch.atan2(2 * (q0 * q3 - q1 * q2), 1 - 2*(q1 * q1 + q3 * q3))
+        x = torch.asin(torch.clamp(2 * (q0 * q1 + q2 * q3), -1 + epsilon, 1 - epsilon))
+        y = torch.atan2(2 * (q0 * q2 - q1 * q3), 1 - 2 * (q1 * q1 + q2 * q2))
+        z = torch.atan2(2 * (q0 * q3 - q1 * q2), 1 - 2 * (q1 * q1 + q3 * q3))
     elif order == 'xzy':
-        x = torch.atan2(2 * (q0 * q1 + q2 * q3), 1 - 2*(q1 * q1 + q3 * q3))
-        y = torch.atan2(2 * (q0 * q2 + q1 * q3), 1 - 2*(q2 * q2 + q3 * q3))
-        z = torch.asin(torch.clamp(
-            2 * (q0 * q3 - q1 * q2), -1+epsilon, 1-epsilon))
+        x = torch.atan2(2 * (q0 * q1 + q2 * q3), 1 - 2 * (q1 * q1 + q3 * q3))
+        y = torch.atan2(2 * (q0 * q2 + q1 * q3), 1 - 2 * (q2 * q2 + q3 * q3))
+        z = torch.asin(torch.clamp(2 * (q0 * q3 - q1 * q2), -1 + epsilon, 1 - epsilon))
     elif order == 'yxz':
-        x = torch.asin(torch.clamp(
-            2 * (q0 * q1 - q2 * q3), -1+epsilon, 1-epsilon))
-        y = torch.atan2(2 * (q1 * q3 + q0 * q2), 1 - 2*(q1 * q1 + q2 * q2))
-        z = torch.atan2(2 * (q1 * q2 + q0 * q3), 1 - 2*(q1 * q1 + q3 * q3))
+        x = torch.asin(torch.clamp(2 * (q0 * q1 - q2 * q3), -1 + epsilon, 1 - epsilon))
+        y = torch.atan2(2 * (q1 * q3 + q0 * q2), 1 - 2 * (q1 * q1 + q2 * q2))
+        z = torch.atan2(2 * (q1 * q2 + q0 * q3), 1 - 2 * (q1 * q1 + q3 * q3))
     elif order == 'zyx':
-        x = torch.atan2(2 * (q0 * q1 + q2 * q3), 1 - 2*(q1 * q1 + q2 * q2))
-        y = torch.asin(torch.clamp(
-            2 * (q0 * q2 - q1 * q3), -1+epsilon, 1-epsilon))
-        z = torch.atan2(2 * (q0 * q3 + q1 * q2), 1 - 2*(q2 * q2 + q3 * q3))
+        x = torch.atan2(2 * (q0 * q1 + q2 * q3), 1 - 2 * (q1 * q1 + q2 * q2))
+        y = torch.asin(torch.clamp(2 * (q0 * q2 - q1 * q3), -1 + epsilon, 1 - epsilon))
+        z = torch.atan2(2 * (q0 * q3 + q1 * q2), 1 - 2 * (q2 * q2 + q3 * q3))
     else:
         raise Exception('unsupported euler order!')
 
@@ -197,12 +201,12 @@ def euler_to_quaternion(euler, order):
     y = e[:, 1]
     z = e[:, 2]
 
-    rx = torch.stack((torch.cos(x/2), torch.sin(x/2),
-                      torch.zeros_like(x), torch.zeros_like(x)), dim=1)
-    ry = torch.stack((torch.cos(y/2), torch.zeros_like(y),
-                      torch.sin(y/2), torch.zeros_like(y)), dim=1)
-    rz = torch.stack((torch.cos(z/2), torch.zeros_like(z),
-                      torch.zeros_like(z), torch.sin(z/2)), dim=1)
+    rx = torch.stack((torch.cos(x / 2), torch.sin(x / 2), torch.zeros_like(x), torch.zeros_like(x)),
+                     dim=1)
+    ry = torch.stack((torch.cos(y / 2), torch.zeros_like(y), torch.sin(y / 2), torch.zeros_like(y)),
+                     dim=1)
+    rz = torch.stack((torch.cos(z / 2), torch.zeros_like(z), torch.zeros_like(z), torch.sin(z / 2)),
+                     dim=1)
 
     result = None
     for coord in order:
@@ -237,24 +241,23 @@ def quaternion_to_axis_angle(quaternion):
     """
     epsilon = 1.e-8
     if not torch.is_tensor(quaternion):
-        raise TypeError("Input type is not a torch.Tensor. Got {}".format(
-            type(quaternion)))
+        raise TypeError("Input type is not a torch.Tensor. Got {}".format(type(quaternion)))
 
     if not quaternion.shape[-1] == 4:
-        raise ValueError("Input must be a tensor of shape Nx4 or 4. Got {}"
-                         .format(quaternion.shape))
+        raise ValueError(
+            "Input must be a tensor of shape Nx4 or 4. Got {}".format(quaternion.shape)
+        )
     # unpack input and compute conversion
     q1: torch.Tensor = quaternion[..., 1]
     q2: torch.Tensor = quaternion[..., 2]
     q3: torch.Tensor = quaternion[..., 3]
     sin_squared_theta: torch.Tensor = q1 * q1 + q2 * q2 + q3 * q3
 
-    sin_theta: torch.Tensor = torch.sqrt(sin_squared_theta+epsilon)
+    sin_theta: torch.Tensor = torch.sqrt(sin_squared_theta + epsilon)
     cos_theta: torch.Tensor = quaternion[..., 0]
     two_theta: torch.Tensor = 2.0 * torch.where(
-        cos_theta < 0.0,
-        torch.atan2(-sin_theta, -cos_theta),
-        torch.atan2(sin_theta, cos_theta))
+        cos_theta < 0.0, torch.atan2(-sin_theta, -cos_theta), torch.atan2(sin_theta, cos_theta)
+    )
 
     k_pos: torch.Tensor = two_theta / sin_theta
     k_neg: torch.Tensor = 2.0 * torch.ones_like(sin_theta)
@@ -288,13 +291,13 @@ def axis_angle_to_rotation_matrix(axis_angle):
         rotation_matrix: torch tensor of shape (batch_size, 3, 3) of corresponding rotation matrices.
     """
 
-    l1_norm = torch.norm(axis_angle+1e-8, p=2, dim=1)
+    l1_norm = torch.norm(axis_angle + 1e-8, p=2, dim=1)
     angle = torch.unsqueeze(l1_norm, dim=-1)
     normalized = torch.div(axis_angle, angle)
     angle = angle * 0.5
     v_cos = torch.cos(angle)
     v_sin = torch.sin(angle)
-    quaternion = torch.cat([v_cos, v_sin*normalized], dim=1)
+    quaternion = torch.cat([v_cos, v_sin * normalized], dim=1)
     return quaternion_to_rotation_matrix(quaternion)
 
 
@@ -322,6 +325,7 @@ def euler_to_axis_angle(euler, order):
     quaternion = euler_to_quaternion(euler, order)
     return quaternion_to_axis_angle(quaternion)
 
+
 # rotation operations
 
 
@@ -337,8 +341,7 @@ def quaternion_mul(q, r):
     original_shape = q.shape
 
     # Compute outer product
-    terms = torch.bmm(r.contiguous().view(-1, 4, 1),
-                      q.contiguous().view(-1, 1, 4))
+    terms = torch.bmm(r.contiguous().view(-1, 4, 1), q.contiguous().view(-1, 1, 4))
 
     w = terms[:, 0, 0] - terms[:, 1, 1] - terms[:, 2, 2] - terms[:, 3, 3]
     x = terms[:, 0, 1] + terms[:, 1, 0] - terms[:, 2, 3] + terms[:, 3, 2]
@@ -379,7 +382,7 @@ def quaternion_fix(quaternion):
         quaternion: torch tensor of shape (batch_size, 4)
     """
     quaternion_fixed = quaternion.clone()
-    dot_products = torch.sum(quaternion[1:]*quaternion[:-1],dim=-1)
+    dot_products = torch.sum(quaternion[1:] * quaternion[:-1], dim=-1)
     mask = dot_products < 0
     mask = (torch.cumsum(mask, dim=0) % 2).bool()
     quaternion_fixed[1:][mask] *= -1
@@ -390,36 +393,39 @@ def quaternion_inverse(quaternion):
     q_conjugate = quaternion.clone()
     q_conjugate[::, 1:] * -1
     q_norm = quaternion[::, 1:].norm(dim=-1) + quaternion[::, 0]**2
-    return q_conjugate/q_norm.unsqueeze(-1)
+    return q_conjugate / q_norm.unsqueeze(-1)
 
 
 def quaternion_lerp(q1, q2, t):
-    q = (1-t)*q1 + t*q2
-    q = q/q.norm(dim=-1).unsqueeze(-1)
+    q = (1 - t) * q1 + t * q2
+    q = q / q.norm(dim=-1).unsqueeze(-1)
     return q
 
-def geodesic_dist(q1,q2):
+
+def geodesic_dist(q1, q2):
     """
     @q1: torch tensor of shape (frame, joints, 4) quaternion
     @q2: same as q1
     @output: torch tensor of shape (frame, joints)
     """
     q1_conjugate = q1.clone()
-    q1_conjugate[:,:,1:] *= -1
-    q1_norm = q1[:,:,1:].norm(dim=-1) + q1[:,:,0]**2
-    q1_inverse = q1_conjugate/q1_norm.unsqueeze(dim=-1)
-    q_between = quaternion_mul(q1_inverse,q2)
+    q1_conjugate[:, :, 1:] *= -1
+    q1_norm = q1[:, :, 1:].norm(dim=-1) + q1[:, :, 0]**2
+    q1_inverse = q1_conjugate / q1_norm.unsqueeze(dim=-1)
+    q_between = quaternion_mul(q1_inverse, q2)
     geodesic_dist = quaternion_to_axis_angle(q_between).norm(dim=-1)
     return geodesic_dist
+
 
 def get_extrinsic(translation, rotation):
     batch_size = translation.shape[0]
     pose = torch.zeros((batch_size, 4, 4))
-    pose[:,:3, :3] = rotation
-    pose[:,:3, 3] = translation
-    pose[:,3, 3] = 1
+    pose[:, :3, :3] = rotation
+    pose[:, :3, 3] = translation
+    pose[:, 3, 3] = 1
     extrinsic = torch.inverse(pose)
-    return extrinsic[:,:3, 3], extrinsic[:,:3, :3]
+    return extrinsic[:, :3, 3], extrinsic[:, :3, :3]
+
 
 def euler_fix_old(euler):
     frame_num = euler.shape[0]
@@ -427,19 +433,19 @@ def euler_fix_old(euler):
     for l in range(3):
         for j in range(joint_num):
             overall_add = 0.
-            for i in range(1,frame_num):
+            for i in range(1, frame_num):
                 add1 = overall_add
-                add2 = overall_add + 2*np.pi
-                add3 = overall_add - 2*np.pi
-                previous = euler[i-1,j,l]
-                value1 = euler[i,j,l] + add1
-                value2 = euler[i,j,l] + add2
-                value3 = euler[i,j,l] + add3
+                add2 = overall_add + 2 * np.pi
+                add3 = overall_add - 2 * np.pi
+                previous = euler[i - 1, j, l]
+                value1 = euler[i, j, l] + add1
+                value2 = euler[i, j, l] + add2
+                value3 = euler[i, j, l] + add3
                 e1 = torch.abs(value1 - previous)
                 e2 = torch.abs(value2 - previous)
                 e3 = torch.abs(value3 - previous)
                 if (e1 <= e2) and (e1 <= e3):
-                    euler[i,j,l] = value1
+                    euler[i, j, l] = value1
                     overall_add = add1
                 if (e2 <= e1) and (e2 <= e3):
                     euler[i, j, l] = value2
@@ -449,17 +455,21 @@ def euler_fix_old(euler):
                     overall_add = add3
     return euler
 
-def euler_fix(euler,rotation_order='zyx'):
+
+def euler_fix(euler, rotation_order='zyx'):
     frame_num = euler.shape[0]
     joint_num = euler.shape[1]
     euler_new = euler.clone()
     for j in range(joint_num):
-        euler_new[:,j] = euler_filter(euler[:,j],rotation_order)
+        euler_new[:, j] = euler_filter(euler[:, j], rotation_order)
     return euler_new
+
 
 '''
 euler filter from https://github.com/wesen/blender-euler-filter/blob/master/euler_filter.py.
 '''
+
+
 def euler_distance(e1, e2):
     return abs(e1[0] - e2[0]) + abs(e1[1] - e2[1]) + abs(e1[2] - e2[2])
 
@@ -473,6 +483,7 @@ def euler_axis_index(axis):
         return 2
     return None
 
+
 def flip_euler(euler, rotation_mode):
     ret = euler.clone()
     inner_axis = rotation_mode[0]
@@ -485,8 +496,9 @@ def flip_euler(euler, rotation_mode):
     ret[euler_axis_index(middle_axis)] += np.pi
     return ret
 
+
 def naive_flip_diff(a1, a2):
-    while abs(a1 - a2) >= np.pi+1e-5:
+    while abs(a1 - a2) >= np.pi + 1e-5:
         if a1 < a2:
             a2 -= 2 * np.pi
         else:
@@ -494,22 +506,23 @@ def naive_flip_diff(a1, a2):
 
     return a2
 
-def euler_filter(euler,rotation_order):
+
+def euler_filter(euler, rotation_order):
     frame_num = euler.shape[0]
     if frame_num <= 1:
         return euler
-    euler_fix  = euler.clone()
+    euler_fix = euler.clone()
     prev = euler[0]
-    for i in range(1,frame_num):
+    for i in range(1, frame_num):
         e = euler[i]
         for d in range(3):
-            e[d] = naive_flip_diff(prev[d],e[d])
-        fe = flip_euler(e,rotation_order)
+            e[d] = naive_flip_diff(prev[d], e[d])
+        fe = flip_euler(e, rotation_order)
         for d in range(3):
-            fe[d] = naive_flip_diff(prev[d],fe[d])
-        
-        de = euler_distance(prev,e)
-        dfe = euler_distance(prev,fe)
+            fe[d] = naive_flip_diff(prev[d], fe[d])
+
+        de = euler_distance(prev, e)
+        dfe = euler_distance(prev, fe)
         if dfe < de:
             e = fe
         prev = e

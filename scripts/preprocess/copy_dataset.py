@@ -6,17 +6,19 @@
   @ FilePath: /EasyMocapPublic/scripts/preprocess/copy_dataset.py
 '''
 import os
-from os.path import join
 import shutil
-from tqdm import tqdm
 from glob import glob
+from os.path import join
+
 import cv2
+from tqdm import tqdm
 
 from easymocap.mytools.debug_utils import myerror, mywarn
 
-mkdir = lambda x:os.makedirs(x, exist_ok=True)
+mkdir = lambda x: os.makedirs(x, exist_ok=True)
 
 import json
+
 
 def save_json(file, data):
     if not os.path.exists(os.path.dirname(file)):
@@ -24,10 +26,12 @@ def save_json(file, data):
     with open(file, 'w') as f:
         json.dump(data, f, indent=4)
 
+
 def read_json(path):
     with open(path) as f:
         data = json.load(f)
     return data
+
 
 def copy_dataset(inp, out, start, end, step, keys, args):
     copy_keys = {
@@ -35,9 +39,7 @@ def copy_dataset(inp, out, start, end, step, keys, args):
         'annots': '.json',
         'mask-schp': '.png',
     }
-    copy_share_keys = {
-        'output-keypoints3d/keypoints3d': '.json'
-    }
+    copy_share_keys = {'output-keypoints3d/keypoints3d': '.json'}
     mkdir(out)
     if os.path.exists(join(inp, 'intri.yml')):
         shutil.copyfile(join(inp, 'intri.yml'), join(out, 'intri.yml'))
@@ -96,8 +98,9 @@ def copy_dataset(inp, out, start, end, step, keys, args):
                 else:
                     ranges = args.frames
             else:
-                ranges = [(i/args.sample)*(end-start-2*args.strip_frame)+start+args.strip_frame for i in range(args.sample)]
-                ranges = [int(i+0.5) for i in ranges]
+                ranges = [(i / args.sample) * (end - start - 2 * args.strip_frame) + start +
+                          args.strip_frame for i in range(args.sample)]
+                ranges = [int(i + 0.5) for i in ranges]
             if os.path.exists(outdir) and len(os.listdir(outdir)) == len(ranges):
                 mywarn('[copy] Skip {}'.format(outdir))
                 continue
@@ -107,11 +110,17 @@ def copy_dataset(inp, out, start, end, step, keys, args):
                     oldnames = sorted(glob(join(inp, copy, sub, '{:06d}_*{}'.format(nf, ext))))
                     if len(oldnames) == 0:
                         myerror('{} not exists'.format(oldname))
-                        import ipdb;ipdb.set_trace()
+                        import ipdb
+                        ipdb.set_trace()
                     else:
                         for oldname in oldnames:
-                            newname = join(outdir, os.path.basename(oldname).replace('{:06d}'.format(nf), '{:06d}'.format(nnf)))
-                            shutil.copyfile(oldname, newname)                            
+                            newname = join(
+                                outdir,
+                                os.path.basename(oldname).replace(
+                                    '{:06d}'.format(nf), '{:06d}'.format(nnf)
+                                )
+                            )
+                            shutil.copyfile(oldname, newname)
                 else:
                     newname = join(outdir, '{:06d}{}'.format(nnf, ext))
                     if copy == 'images' and args.scale != 1:
@@ -130,6 +139,7 @@ def copy_dataset(inp, out, start, end, step, keys, args):
                 print(shell)
                 os.system(shell)
 
+
 def export(root, out, keys):
     mkdir(out)
     for key in keys:
@@ -143,8 +153,10 @@ def export(root, out, keys):
                 subs = sorted(os.listdir(join(root, 'images')))
                 for sub in subs:
                     cmd = '{ffmpeg} -r {fps} -i {inp}/%06d.jpg -vcodec libx264 {out}'.format(
-                        ffmpeg=args.ffmpeg, fps=50, inp=join(root, 'images', sub),
-                        out=join(dst, sub+'.mp4')
+                        ffmpeg=args.ffmpeg,
+                        fps=50,
+                        inp=join(root, 'images', sub),
+                        out=join(dst, sub + '.mp4')
                     )
                     os.system(cmd)
         if not os.path.exists(src):
@@ -154,6 +166,7 @@ def export(root, out, keys):
     for name in ['intri.yml', 'extri.yml']:
         if os.path.exists(join(root, name)):
             shutil.copyfile(join(root, name), join(out, name))
+
 
 if __name__ == "__main__":
     import argparse
@@ -167,12 +180,14 @@ if __name__ == "__main__":
     parser.add_argument('--step', type=int, default=1)
     parser.add_argument('--end', type=int, default=-1)
     parser.add_argument('--scale', type=float, default=1)
-    parser.add_argument('--strip_frame', type=int, default=0,
-        help='remove the start frames and end frames')
+    parser.add_argument(
+        '--strip_frame', type=int, default=0, help='remove the start frames and end frames'
+    )
     parser.add_argument('--ffmpeg', type=str, default='ffmpeg')
     parser.add_argument('--ext', type=str, default='.jpg')
-    parser.add_argument('--sample', type=int, default=-1,
-        help='use this flag to sample a fixed number of frames')
+    parser.add_argument(
+        '--sample', type=int, default=-1, help='use this flag to sample a fixed number of frames'
+    )
     parser.add_argument('--frames', type=int, default=[], nargs='+')
     parser.add_argument('--debug', action='store_true')
     parser.add_argument('--make_video', action='store_true')
@@ -181,4 +196,12 @@ if __name__ == "__main__":
     if args.export:
         export(args.path, args.out, args.keys)
     else:
-        copy_dataset(args.path, args.out, start=args.start, end=args.end, step=args.step, keys=args.keys, args=args)
+        copy_dataset(
+            args.path,
+            args.out,
+            start=args.start,
+            end=args.end,
+            step=args.step,
+            keys=args.keys,
+            args=args
+        )

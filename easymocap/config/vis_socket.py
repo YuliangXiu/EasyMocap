@@ -5,10 +5,13 @@
   @ LastEditTime: 2021-06-28 13:03:37
   @ FilePath: /EasyMocapRelease/easymocap/config/vis_socket.py
 '''
+import socket
+
+import numpy as np
+
 from .baseconfig import CN
 from .baseconfig import Config as BaseConfig
-import socket
-import numpy as np
+
 
 class Config(BaseConfig):
     @staticmethod
@@ -18,10 +21,10 @@ class Config(BaseConfig):
         cfg.port = 9999
         cfg.width = 1920
         cfg.height = 1080
-        
+
         cfg.max_human = 5
         cfg.track = True
-        cfg.block = True # block visualization or not, True for visualize each frame, False in realtime applications
+        cfg.block = True    # block visualization or not, True for visualize each frame, False in realtime applications
         cfg.rotate = False
         cfg.debug = False
         cfg.write = False
@@ -49,27 +52,24 @@ class Config(BaseConfig):
         # range
         cfg.range = CN()
         cfg.range.minr = [-100, -100, -10]
-        cfg.range.maxr = [ 100,  100,  10]
+        cfg.range.maxr = [100, 100, 10]
         cfg.range.rate_inlier = 0.8
         cfg.range.min_conf = 0.1
         return cfg
-    
+
     @staticmethod
     def parse(cfg):
         if cfg.host == 'auto':
             cfg.host = socket.gethostname()
         if cfg.camera.set_camera:
             pass
-        else:# use default camera
+        else:    # use default camera
             # theta, phi = cfg.camera.theta, cfg.camera.phi
             theta, phi = np.deg2rad(cfg.camera.theta), np.deg2rad(cfg.camera.phi)
             cx, cy, cz = cfg.camera.cx, cfg.camera.cy, cfg.camera.cz
             st, ct = np.sin(theta), np.cos(theta)
             sp, cp = np.sin(phi), np.cos(phi)
             dist = 6
-            camera_pose = np.array([
-                    [cp, -st*sp, ct*sp, cx],
-                    [sp, st*cp, -ct*cp, cy],
-                    [0., ct, st, cz],
-                    [0.0, 0.0, 0.0, 1.0]])
+            camera_pose = np.array([[cp, -st * sp, ct * sp, cx], [sp, st * cp, -ct * cp, cy],
+                                    [0., ct, st, cz], [0.0, 0.0, 0.0, 1.0]])
             cfg.camera.camera_pose = camera_pose.tolist()

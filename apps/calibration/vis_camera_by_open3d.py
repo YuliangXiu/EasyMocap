@@ -6,13 +6,16 @@
   @ LastEditTime: 2022-10-17 13:05:28
   @ FilePath: /EasyMocapPublic/apps/calibration/vis_camera_by_open3d.py
 '''
-import open3d as o3d
 import os
+
 import cv2
 import numpy as np
+import open3d as o3d
+
 from easymocap.mytools.camera_utils import read_cameras
-from easymocap.visualize.o3dwrapper import Vector3dVector, create_pcd
 from easymocap.mytools.vis_base import generate_colorbar
+from easymocap.visualize.o3dwrapper import create_pcd
+
 
 def transform_cameras(cameras):
     dims = {'x': 0, 'y': 1, 'z': 2}
@@ -23,10 +26,10 @@ def transform_cameras(cameras):
         trans = np.array(args.trans0).reshape(3, 1)
         T_global += trans
     if len(args.rot) > 0:
-        for i in range(len(args.rot)//2):
-            dim = args.rot[2*i]
-            val = float(args.rot[2*i+1])
-            rvec = np.zeros((3,))
+        for i in range(len(args.rot) // 2):
+            dim = args.rot[2 * i]
+            val = float(args.rot[2 * i + 1])
+            rvec = np.zeros((3, ))
             rvec[dims[dim]] = np.deg2rad(val)
             R = cv2.Rodrigues(rvec)[0]
             R_global = R @ R_global
@@ -49,18 +52,16 @@ def transform_cameras(cameras):
         cam['T'] = RT[:3, 3:]
     return cameras, trans
 
+
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('path', type=str)
     parser.add_argument('--subs', type=str, default=[], nargs='+')
     parser.add_argument('--pcd', type=str, default=[], nargs='+')
-    parser.add_argument('--trans0', type=float, nargs=3, 
-        default=[], help='translation')
-    parser.add_argument('--rot', type=str, nargs='+',
-        default=[], help='control the rotation')
-    parser.add_argument('--trans', type=float, nargs=3, 
-        default=[], help='translation')
+    parser.add_argument('--trans0', type=float, nargs=3, default=[], help='translation')
+    parser.add_argument('--rot', type=str, nargs='+', default=[], help='control the rotation')
+    parser.add_argument('--trans', type=float, nargs=3, default=[], help='translation')
     parser.add_argument('--debug', action='store_true')
     args = parser.parse_args()
 
@@ -77,7 +78,7 @@ if __name__ == '__main__':
             data = np.load(pcd)
             points = data[:, :3]
             colors = data[:, 3:]
-            points = (trans[:3,:3] @ points.T + trans[:3,3:]).T
+            points = (trans[:3, :3] @ points.T + trans[:3, 3:]).T
             p = create_pcd(points, colors=data[:, 3:])
             grids.append(p)
         elif pcd.endswith('.ply'):
@@ -95,19 +96,20 @@ if __name__ == '__main__':
             print(vertices.min(axis=0))
             print(vertices.max(axis=0))
             grids.append(p)
-        
-    center = o3d.geometry.TriangleMesh.create_coordinate_frame(
-        size=1, origin=[0, 0, 0])
+
+    center = o3d.geometry.TriangleMesh.create_coordinate_frame(size=1, origin=[0, 0, 0])
     grids.append(center)
     colorbar = generate_colorbar(len(cameras), rand=False)
     camera_locations = []
     for ic, (cam, camera) in enumerate(cameras.items()):
-        if len(args.subs) > 0 and cam not in args.subs:continue
-        center = - camera['R'].T @ camera['T']
+        if len(args.subs) > 0 and cam not in args.subs:
+            continue
+        center = -camera['R'].T @ camera['T']
         print('{}: {}'.format(cam, center.T[0]))
         camera_locations.append(center)
         center = o3d.geometry.TriangleMesh.create_coordinate_frame(
-                size=0.5, origin=[center[0, 0], center[1, 0], center[2, 0]])
+            size=0.5, origin=[center[0, 0], center[1, 0], center[2, 0]]
+        )
         center.rotate(camera['R'].T)
         grids.append(center)
         # TODO: add label

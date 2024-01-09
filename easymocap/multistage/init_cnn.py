@@ -7,27 +7,30 @@
   @ FilePath: /EasyMocapPublic/easymocap/multistage/init_cnn.py
 '''
 import os
-import numpy as np
-import cv2
-from tqdm import tqdm
 from os.path import join
-import torch
+
+import cv2
+import numpy as np
+from tqdm import tqdm
+
 from ..bodymodel.base import Params
 from ..estimator.wrapper_base import bbox_from_keypoints
-from ..mytools.writer import write_smpl
 from ..mytools.reader import read_smpl
+from ..mytools.writer import write_smpl
+
 
 class InitSpin:
     # initialize the smpl results by spin
-    def __init__(self, mean_params, ckpt_path, share_shape, 
-        multi_person=False, compose_mp=False) -> None:
-        from ..estimator.SPIN.spin_api import SPIN
+    def __init__(
+        self, mean_params, ckpt_path, share_shape, multi_person=False, compose_mp=False
+    ) -> None:
         import torch
+
+        from ..estimator.SPIN.spin_api import SPIN
         self.share_shape = share_shape
         self.spin_model = SPIN(
-            SMPL_MEAN_PARAMS=mean_params, 
-            checkpoint=ckpt_path,
-            device=torch.device('cpu'))
+            SMPL_MEAN_PARAMS=mean_params, checkpoint=ckpt_path, device=torch.device('cpu')
+        )
         self.distortMap = {}
         self.multi_person = multi_person
         self.compose_mp = compose_mp
@@ -36,8 +39,8 @@ class InitSpin:
         if np.linalg.norm(dist) < 0.01:
             return image
         if nv not in self.distortMap.keys():
-            h,  w = image.shape[:2]
-            mapx, mapy = cv2.initUndistortRectifyMap(K, dist, None, K, (w,h), 5)
+            h, w = image.shape[:2]
+            mapx, mapy = cv2.initUndistortRectifyMap(K, dist, None, K, (w, h), 5)
             self.distortMap[nv] = (mapx, mapy)
         mapx, mapy = self.distortMap[nv]
         image = cv2.remap(image, mapx, mapy, cv2.INTER_LINEAR)
@@ -76,8 +79,9 @@ class InitSpin:
                 bbox = bbox_from_keypoints(keypoints)
                 nValid = (keypoints[:, -1] > 0).sum()
                 if nValid > 4:
-                    result = self.spin_model(body_model, image, 
-                        bbox, keypoints, camera, ret_vertices=False)
+                    result = self.spin_model(
+                        body_model, image, bbox, keypoints, camera, ret_vertices=False
+                    )
                 elif len(params_all) == 0:
                     print('[WARN] not enough joints: {} in first frame'.format(imgname))
                 else:
@@ -98,6 +102,8 @@ class InitSpin:
             params_all = Params.merge(params_all, share_shape=self.share_shape)
             params_all = body_model.encode(params_all)
         elif self.compose_mp:
-            params_all = Params.merge([Params.merge(p_, share_shape=False) for p_ in params_all], share_shape=False, stack=np.stack)
+            params_all = Params.merge([Params.merge(p_, share_shape=False) for p_ in params_all],
+                                      share_shape=False,
+                                      stack=np.stack)
             params_all['id'] = 0
         return params_all

@@ -1,8 +1,7 @@
 # Python < 3 needs this: coding=utf-8
 import pytest
-
+from pybind11_tests import IncType, UserType
 from pybind11_tests import builtin_casters as m
-from pybind11_tests import UserType, IncType
 
 
 def test_simple_string():
@@ -48,13 +47,14 @@ def test_single_char_arguments():
     """Tests failures for passing invalid inputs to char-accepting functions"""
     def toobig_message(r):
         return "Character code point not in range({0:#x})".format(r)
+
     toolong_message = "Expected a character, but multi-character string found"
 
-    assert m.ord_char(u'a') == 0x61  # simple ASCII
+    assert m.ord_char(u'a') == 0x61    # simple ASCII
     assert m.ord_char_lv(u'b') == 0x62
-    assert m.ord_char(u'é') == 0xE9  # requires 2 bytes in utf-8, but can be stuffed in a char
+    assert m.ord_char(u'é') == 0xE9    # requires 2 bytes in utf-8, but can be stuffed in a char
     with pytest.raises(ValueError) as excinfo:
-        assert m.ord_char(u'Ā') == 0x100  # requires 2 bytes, doesn't fit in a char
+        assert m.ord_char(u'Ā') == 0x100    # requires 2 bytes, doesn't fit in a char
     assert str(excinfo.value) == toobig_message(0x100)
     with pytest.raises(ValueError) as excinfo:
         assert m.ord_char(u'ab')
@@ -68,7 +68,7 @@ def test_single_char_arguments():
     assert m.ord_char16(u'♥') == 0x2665
     assert m.ord_char16_lv(u'♡') == 0x2661
     with pytest.raises(ValueError) as excinfo:
-        assert m.ord_char16(u'🎂') == 0x1F382  # requires surrogate pair
+        assert m.ord_char16(u'🎂') == 0x1F382    # requires surrogate pair
     assert str(excinfo.value) == toobig_message(0x10000)
     with pytest.raises(ValueError) as excinfo:
         assert m.ord_char16(u'aa')
@@ -91,7 +91,7 @@ def test_single_char_arguments():
     assert m.ord_wchar(u'♥') == 0x2665
     if m.wchar_size == 2:
         with pytest.raises(ValueError) as excinfo:
-            assert m.ord_wchar(u'🎂') == 0x1F382  # requires surrogate pair
+            assert m.ord_wchar(u'🎂') == 0x1F382    # requires surrogate pair
         assert str(excinfo.value) == toobig_message(0x10000)
     else:
         assert m.ord_wchar(u'🎂') == 0x1F382
@@ -100,11 +100,13 @@ def test_single_char_arguments():
     assert str(excinfo.value) == toolong_message
 
     if hasattr(m, "has_u8string"):
-        assert m.ord_char8(u'a') == 0x61  # simple ASCII
+        assert m.ord_char8(u'a') == 0x61    # simple ASCII
         assert m.ord_char8_lv(u'b') == 0x62
-        assert m.ord_char8(u'é') == 0xE9  # requires 2 bytes in utf-8, but can be stuffed in a char
+        assert m.ord_char8(
+            u'é'
+        ) == 0xE9    # requires 2 bytes in utf-8, but can be stuffed in a char
         with pytest.raises(ValueError) as excinfo:
-            assert m.ord_char8(u'Ā') == 0x100  # requires 2 bytes, doesn't fit in a char
+            assert m.ord_char8(u'Ā') == 0x100    # requires 2 bytes, doesn't fit in a char
         assert str(excinfo.value) == toobig_message(0x100)
         with pytest.raises(ValueError) as excinfo:
             assert m.ord_char8(u'ab')
@@ -121,7 +123,7 @@ def test_bytes_to_string():
     assert m.strlen(byte("hi")) == 2
     assert m.string_length(byte("world")) == 5
     assert m.string_length(byte("a\x00b")) == 3
-    assert m.strlen(byte("a\x00b")) == 1  # C-string limitation
+    assert m.strlen(byte("a\x00b")) == 1    # C-string limitation
 
     # passing in a utf8 encoded string should work
     assert m.string_length(u'💩'.encode("utf8")) == 4
@@ -192,11 +194,11 @@ def test_integer_casting():
     assert m.i64_str(-1) == "-1"
     assert m.i32_str(2000000000) == "2000000000"
     assert m.u32_str(2000000000) == "2000000000"
-    if sys.version_info < (3,):
-        assert m.i32_str(long(-1)) == "-1"  # noqa: F821 undefined name 'long'
-        assert m.i64_str(long(-1)) == "-1"  # noqa: F821 undefined name 'long'
-        assert m.i64_str(long(-999999999999)) == "-999999999999"  # noqa: F821 undefined name
-        assert m.u64_str(long(999999999999)) == "999999999999"  # noqa: F821 undefined name 'long'
+    if sys.version_info < (3, ):
+        assert m.i32_str(long(-1)) == "-1"    # noqa: F821 undefined name 'long'
+        assert m.i64_str(long(-1)) == "-1"    # noqa: F821 undefined name 'long'
+        assert m.i64_str(long(-999999999999)) == "-999999999999"    # noqa: F821 undefined name
+        assert m.u64_str(long(999999999999)) == "999999999999"    # noqa: F821 undefined name 'long'
     else:
         assert m.i64_str(-999999999999) == "-999999999999"
         assert m.u64_str(999999999999) == "999999999999"
@@ -214,12 +216,12 @@ def test_integer_casting():
         m.i32_str(3000000000)
     assert "incompatible function arguments" in str(excinfo.value)
 
-    if sys.version_info < (3,):
+    if sys.version_info < (3, ):
         with pytest.raises(TypeError) as excinfo:
-            m.u32_str(long(-1))  # noqa: F821 undefined name 'long'
+            m.u32_str(long(-1))    # noqa: F821 undefined name 'long'
         assert "incompatible function arguments" in str(excinfo.value)
         with pytest.raises(TypeError) as excinfo:
-            m.u64_str(long(-1))  # noqa: F821 undefined name 'long'
+            m.u64_str(long(-1))    # noqa: F821 undefined name 'long'
         assert "incompatible function arguments" in str(excinfo.value)
 
 
@@ -232,12 +234,16 @@ def test_tuple(doc):
     assert m.tuple_passthrough([True, "test", 5]) == (5, "test", True)
     assert m.empty_tuple() == ()
 
-    assert doc(m.pair_passthrough) == """
+    assert doc(
+        m.pair_passthrough
+    ) == """
         pair_passthrough(arg0: Tuple[bool, str]) -> Tuple[str, bool]
 
         Return a pair in reversed order
     """
-    assert doc(m.tuple_passthrough) == """
+    assert doc(
+        m.tuple_passthrough
+    ) == """
         tuple_passthrough(arg0: Tuple[bool, str, int]) -> Tuple[int, str, bool]
 
         Return a triple in reversed order

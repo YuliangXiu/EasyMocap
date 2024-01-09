@@ -1,10 +1,13 @@
-import numpy as np
 import cv2
+import numpy as np
+
 from easymocap.mytools.camera_utils import Undistort
-from easymocap.mytools.debug_utils import log, mywarn, myerror
-from .iterative_triangulate import iterative_triangulate
-from easymocap.mytools.triangulator import project_points, batch_triangulate
+from easymocap.mytools.debug_utils import log, mywarn
 from easymocap.mytools.timer import Timer
+from easymocap.mytools.triangulator import batch_triangulate, project_points
+
+from .iterative_triangulate import iterative_triangulate
+
 
 class DistanceBase:
     # 这个类用于计算affinity

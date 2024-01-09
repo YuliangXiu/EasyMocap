@@ -1,7 +1,9 @@
 import torch
 import torch.nn as nn
-from easymocap.config import Config, load_object
+
+from easymocap.config import load_object
 from easymocap.mytools.debug_utils import log
+
 
 def dict_of_numpy_to_tensor(body_params, device):
     params_ = {}

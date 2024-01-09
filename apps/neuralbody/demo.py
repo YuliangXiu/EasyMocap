@@ -1,9 +1,11 @@
-from os.path import join
-from easymocap.mytools.debug_utils import log, run_cmd
-from easymocap.config.baseconfig import Config, CN
 import os
-from glob import glob
 from copy import deepcopy
+from glob import glob
+from os.path import join
+
+from easymocap.config.baseconfig import CN, Config
+from easymocap.mytools.debug_utils import log, run_cmd
+
 
 def reload_config(config, data, outdir):
     # generate config file
@@ -24,7 +26,7 @@ def reload_config(config, data, outdir):
     print(_cfg, file=open(tmp_name, 'w'))
     opts_cfg = config.get('opts', [])
     opts_cfg_dict = config.get('opts_dict', CN({}))
-    if len(data)>0:
+    if len(data) > 0:
         for i in range(len(opts_cfg)):
             if isinstance(opts_cfg[i], str) and r'${data}' in opts_cfg[i]:
                 opts_cfg[i] = opts_cfg[i].replace(r'${data}', data)
@@ -32,7 +34,7 @@ def reload_config(config, data, outdir):
     config.merge_from_other_cfg(opts_cfg_dict)
     config.merge_from_list(args.opts)
     data_share = config.pop('data_share_args')
-    if len(data)>0:
+    if len(data) > 0:
         data_share.root = data
     if args.V100:
         data_share.sample_args.nrays *= 4
@@ -43,19 +45,20 @@ def reload_config(config, data, outdir):
     cfg_name = join(outdir, 'config.yml')
     print(config, file=open(cfg_name, 'w'))
 
+
 def neuralbody_train(data, config, mode, exp=None):
     # run reconstruction
     exp = mode if exp is None else exp
     outdir = join(args.out, exp)
     cfg_name = join(outdir, 'config.yml')
-    cmd =  f'python3 apps/neuralbody/train_pl.py --cfg {cfg_name} gpus {args.gpus} distributed True exp {exp}'
+    cmd = f'python3 apps/neuralbody/train_pl.py --cfg {cfg_name} gpus {args.gpus} distributed True exp {exp}'
     if args.recfg or (not args.test and not args.demo and not args.eval):
         reload_config(config, data, outdir)
     if args.eval or args.demo or args.test or args.trainvis or args.canonical or args.poses is not None:
         if args.test:
             cmd += ' split test'
         elif args.eval:
-            cmd += ' split eval'        
+            cmd += ' split eval'
         elif args.trainvis:
             cmd += ' split trainvis'
         elif args.canonical is not None:
@@ -67,10 +70,13 @@ def neuralbody_train(data, config, mode, exp=None):
         print(cmd)
         run_cmd(cmd)
         # generate videos
-        split = cmd.split()[cmd.split().index('split')+1]
-        find_epoch = lambda x:os.path.basename(x).replace(split+'_', '')
-        demolists = [i for i in glob(join(outdir, split+'*')) if os.path.isdir(i) and find_epoch(i).isdigit()]
-        demolists = sorted(demolists, key=lambda x:int(find_epoch(x)))
+        split = cmd.split()[cmd.split().index('split') + 1]
+        find_epoch = lambda x: os.path.basename(x).replace(split + '_', '')
+        demolists = [
+            i
+            for i in glob(join(outdir, split + '*')) if os.path.isdir(i) and find_epoch(i).isdigit()
+        ]
+        demolists = sorted(demolists, key=lambda x: int(find_epoch(x)))
         if len(demolists) == 0:
             log('No demo results found')
         else:
@@ -83,6 +89,7 @@ def neuralbody_train(data, config, mode, exp=None):
         cmd += ' --debug'
     print(cmd)
     run_cmd(cmd)
+
 
 if __name__ == '__main__':
     config_dict = Config.load('config/neuralbody_index.yml')
@@ -99,11 +106,9 @@ if __name__ == '__main__':
     for mode, config in config_dict.items():
         usage += '\t{:20s}: {}\n'.format(mode, config.comment)
     import argparse
-    parser = argparse.ArgumentParser(
-        usage=usage)
+    parser = argparse.ArgumentParser(usage=usage)
     parser.add_argument('path', type=str, nargs='+', default=[])
-    parser.add_argument('--mode', type=str, default=modes[0],
-        choices=modes)
+    parser.add_argument('--mode', type=str, default=modes[0], choices=modes)
     parser.add_argument('--exp', type=str, default=None)
     parser.add_argument('--gpus', type=str, default='0,')
     parser.add_argument('--out', type=str, default='neuralbody')

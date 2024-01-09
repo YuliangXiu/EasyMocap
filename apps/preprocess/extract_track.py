@@ -1,10 +1,13 @@
-from easymocap.annotator.file_utils import read_json, save_json
-from easymocap.config import load_object_from_cmd
-import numpy as np
-from easymocap.mytools.debug_utils import log, myerror, mywarn, run_cmd
-from tqdm import tqdm
 import os
 from os.path import join
+
+import numpy as np
+from tqdm import tqdm
+
+from easymocap.annotator.file_utils import read_json, save_json
+from easymocap.config import load_object_from_cmd
+from easymocap.mytools.debug_utils import log, mywarn, run_cmd
+
 
 class Tracker:
     def __init__(self, missing_frame=10, thres_iou=0.5) -> None:
@@ -21,7 +24,11 @@ class Tracker:
         removelist = []
         for pid, track in self.cache.items():
             if self.time - track['end_time'] > self.missing_frame:
-                mywarn('[{:06d}] Delete person {:3d} with {:6d} frames'.format(self.time, pid, track['end_time'] - track['start_time']))
+                mywarn(
+                    '[{:06d}] Delete person {:3d} with {:6d} frames'.format(
+                        self.time, pid, track['end_time'] - track['start_time']
+                    )
+                )
                 removelist.append(pid)
         for pid in removelist:
             self.failed[pid] = self.cache.pop(pid)
@@ -30,43 +37,44 @@ class Tracker:
         pid = data['personID']
         self.max_id = max(self.max_id, pid)
         self.cache[pid] = {
-            'start_time': self.time,
-            'end_time': self.time,
-            'missing_frame': [],
-            'infos': [data]
+            'start_time': self.time, 'end_time': self.time, 'missing_frame': [], 'infos': [data]
         }
         return True, pid
-    
+
     def update(self, data, pid):
         track = self.cache[pid]
         if self.time == track['end_time'] + 1 or self.time != 1:
             track['end_time'] = self.time
         else:
-            mywarn('[{:06d}] Refind person {:3d} from {:06d}'.format(self.time, pid, track['end_time']))
+            mywarn(
+                '[{:06d}] Refind person {:3d} from {:06d}'.format(
+                    self.time, pid, track['end_time']
+                )
+            )
             track['end_time'] = self.time
             for f in range(track['end_time'] + 1, self.time):
                 track['missing_frame'].append(f)
         track['infos'].append(data)
-    
+
     def calculate_distance(self, data, infos):
         # TODO: require the last frame
         info = infos[-1]
         if self.dist_mode == 'bbox':
             bbox_now = data['bbox']
             bbox_pre = info['bbox']
-            area_now = (bbox_now[2] - bbox_now[0])*(bbox_now[3]-bbox_now[1])
-            area_pre = (bbox_pre[2] - bbox_pre[0])*(bbox_pre[3]-bbox_pre[1])
+            area_now = (bbox_now[2] - bbox_now[0]) * (bbox_now[3] - bbox_now[1])
+            area_pre = (bbox_pre[2] - bbox_pre[0]) * (bbox_pre[3] - bbox_pre[1])
             # compute IOU
             # max of left
             xx1 = max(bbox_now[0], bbox_pre[0])
             yy1 = max(bbox_now[1], bbox_pre[1])
             # min of right
-            xx2 = min(bbox_now[0+2], bbox_pre[0+2])
-            yy2 = min(bbox_now[1+2], bbox_pre[1+2])
+            xx2 = min(bbox_now[0 + 2], bbox_pre[0 + 2])
+            yy2 = min(bbox_now[1 + 2], bbox_pre[1 + 2])
             # w h
             w = max(0, xx2 - xx1)
             h = max(0, yy2 - yy1)
-            over = (w*h)/(area_pre+area_now-w*h)
+            over = (w * h) / (area_pre + area_now - w * h)
             distance = 1 - over
         return distance
 
@@ -95,11 +103,11 @@ class Tracker:
     def add(self, data):
         flag, pid = self.track(data)
         if not flag:
-            log('[{:06d}] Create person {:3d}'.format(self.time, self.max_id+1))
+            log('[{:06d}] Create person {:3d}'.format(self.time, self.max_id + 1))
             data['personID'] = self.max_id + 1
             flag, pid = self.init(data)
         return flag, pid
-    
+
     def report(self):
         removelist = []
         for pid, track in self.cache.items():
@@ -110,14 +118,19 @@ class Tracker:
         # success
         log('- Tracked detection:')
         for pid, track in self.cache.items():
-            log('{:3d} [{:6d}->{:6d}], missing {}'.format(pid, track['start_time'], track['end_time'], track['missing_frame']))
+            log(
+                '{:3d} [{:6d}->{:6d}], missing {}'.format(
+                    pid, track['start_time'], track['end_time'], track['missing_frame']
+                )
+            )
+
 
 def track2d(datas):
     # sort the first frame by size
     annots0 = datas['annots'][0]
     len_first_frame = len(annots0)
     tracker = Tracker(thres_iou=args.thres_iou)
-    annots0.sort(key=lambda x:-(x['bbox'][2]-x['bbox'][0])*(x['bbox'][3]-x['bbox'][1]))
+    annots0.sort(key=lambda x: -(x['bbox'][2] - x['bbox'][0]) * (x['bbox'][3] - x['bbox'][1]))
     for i, annot in enumerate(annots0):
         annot['personID'] = i
     for nf, annots in enumerate(datas['annots']):
@@ -128,7 +141,7 @@ def track2d(datas):
             continue
         # track all the frames
         tracker.step()
-        annots0.sort(key=lambda x:-(x['bbox'][2]-x['bbox'][0])*(x['bbox'][3]-x['bbox'][1]))
+        annots0.sort(key=lambda x: -(x['bbox'][2] - x['bbox'][0]) * (x['bbox'][3] - x['bbox'][1]))
         for annot in annots:
             # greedy match
             flag, pid = tracker.add(annot)
@@ -139,21 +152,23 @@ def track2d(datas):
     for nf in tqdm(range(nFrames), desc='writing track'):
         annname = data['annname'][nf]
         annots = data['annots'][nf]
-        annots.sort(key=lambda x:x['personID'])
+        annots.sort(key=lambda x: x['personID'])
         annots_origin = read_json(annname)
         annots_origin['annots'] = annots
         save_annot(annname, annots_origin)
     tracker.report()
 
+
 if __name__ == '__main__':
     import argparse
-    parser = argparse.ArgumentParser(description=
-    '''
+    parser = argparse.ArgumentParser(
+        description='''
     For common usage:
         python3 apps/preprocess/extract_track.py ${data}
     For fast motion:
         python3 apps/preprocess/extract_track.py ${data} --thres_iou 0.8
-    ''')
+    '''
+    )
     parser.add_argument('path', type=str)
     parser.add_argument('--out', type=str)
     parser.add_argument('--subs', type=str, default=[], nargs='+')
@@ -180,15 +195,16 @@ if __name__ == '__main__':
                 'reconstructed': 0,
             }
         save_json(annotbase, annot_info)
-        import ipdb;ipdb.set_trace()
+        import ipdb
+        ipdb.set_trace()
         exit()
     annotbase = join(args.path, 'database.json')
     track_info = read_json(annotbase)
-    
+
     if not os.path.exists(annotbase):
         save_json(annotbase, {})
 
-    if len(args.subs) >0:
+    if len(args.subs) > 0:
         opt_data.append('args.subs')
         opt_data.append(args.subs)
     else:
@@ -244,4 +260,8 @@ if __name__ == '__main__':
         mywarn('- Success subs: {}'.format(len(track_info.keys()) - len(failed_subs)))
         mywarn('- Failed subs: {}'.format(failed_subs))
         log('Run the following command to annotate the failed tracks:')
-        log('python3 apps/annotation/annot_track.py ${{data}} --sub {}'.format(' '.join(failed_subs)))
+        log(
+            'python3 apps/annotation/annot_track.py ${{data}} --sub {}'.format(
+                ' '.join(failed_subs)
+            )
+        )

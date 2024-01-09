@@ -7,13 +7,21 @@
 '''
 import numpy as np
 import torch
-from .lbfgs import LBFGS 
-from .optimize import FittingMonitor, grad_require, FittingLog
-from .lossfactory import LossSmoothBodyMean, LossRegPoses
-from .lossfactory import LossKeypoints3D, LossKeypointsMV2D, LossSmoothBody, LossRegPosesZero, LossInit, LossSmoothPoses
 
-def optimizeShape(body_model, body_params, keypoints3d,
-    weight_loss, kintree, cfg=None):
+from .lbfgs import LBFGS
+from .lossfactory import (
+    LossInit,
+    LossKeypoints3D,
+    LossKeypointsMV2D,
+    LossRegPoses,
+    LossRegPosesZero,
+    LossSmoothBodyMean,
+    LossSmoothPoses,
+)
+from .optimize import FittingMonitor, grad_require
+
+
+def optimizeShape(body_model, body_params, keypoints3d, weight_loss, kintree, cfg=None):
     """ simple function for optimizing model shape given 3d keypoints
 
     Args:
@@ -28,39 +36,51 @@ def optimizeShape(body_model, body_params, keypoints3d,
     # 计算不同的骨长
     kintree = np.array(kintree, dtype=int)
     # limb_length: nFrames, nLimbs, 1
-    limb_length = np.linalg.norm(keypoints3d[:, kintree[:, 1], :3] - keypoints3d[:, kintree[:, 0], :3], axis=2, keepdims=True)
+    limb_length = np.linalg.norm(
+        keypoints3d[:, kintree[:, 1], :3] - keypoints3d[:, kintree[:, 0], :3],
+        axis=2,
+        keepdims=True
+    )
     # conf: nFrames, nLimbs, 1
     limb_conf = np.minimum(keypoints3d[:, kintree[:, 1], 3:], keypoints3d[:, kintree[:, 0], 3:])
     limb_length = torch.Tensor(limb_length).to(device)
     limb_conf = torch.Tensor(limb_conf).to(device)
-    body_params = {key:torch.Tensor(val).to(device) for key, val in body_params.items()}
-    body_params_init = {key:val.clone() for key, val in body_params.items()}
+    body_params = {key: torch.Tensor(val).to(device) for key, val in body_params.items()}
+    body_params_init = {key: val.clone() for key, val in body_params.items()}
     opt_params = [body_params['shapes']]
     grad_require(opt_params, True)
-    optimizer = LBFGS(
-        opt_params, line_search_fn='strong_wolfe', max_iter=10)
+    optimizer = LBFGS(opt_params, line_search_fn='strong_wolfe', max_iter=10)
     nFrames = keypoints3d.shape[0]
     verbose = False
+
     def closure(debug=False):
         optimizer.zero_grad()
-        keypoints3d = body_model(return_verts=False, return_tensor=True, only_shape=True, **body_params)
-        src = keypoints3d[:, kintree[:, 0], :3] #.detach()
+        keypoints3d = body_model(
+            return_verts=False, return_tensor=True, only_shape=True, **body_params
+        )
+        src = keypoints3d[:, kintree[:, 0], :3]    #.detach()
         dst = keypoints3d[:, kintree[:, 1], :3]
         direct_est = (dst - src).detach()
         direct_norm = torch.norm(direct_est, dim=2, keepdim=True)
-        direct_normalized = direct_est/(direct_norm + 1e-4)
+        direct_normalized = direct_est / (direct_norm + 1e-4)
         err = dst - src - direct_normalized * limb_length
         loss_dict = {
-            's3d': torch.sum(err**2*limb_conf)/nFrames, 
-            'reg_shapes': torch.sum(body_params['shapes']**2)}
+            's3d': torch.sum(err**2 * limb_conf) / nFrames, 'reg_shapes':
+            torch.sum(body_params['shapes']**2)
+        }
         if 'init_shape' in weight_loss.keys():
-            loss_dict['init_shape'] = torch.sum((body_params['shapes'] - body_params_init['shapes'])**2)
+            loss_dict['init_shape'] = torch.sum(
+                (body_params['shapes'] - body_params_init['shapes'])**2
+            )
         # fittingLog.step(loss_dict, weight_loss)
         if verbose:
-            print(' '.join([key + ' %.3f'%(loss_dict[key].item()*weight_loss[key]) 
-                for key in loss_dict.keys() if weight_loss[key]>0]))
-        loss = sum([loss_dict[key]*weight_loss[key]
-                    for key in loss_dict.keys()])
+            print(
+                ' '.join([
+                    key + ' %.3f' % (loss_dict[key].item() * weight_loss[key])
+                    for key in loss_dict.keys() if weight_loss[key] > 0
+                ])
+            )
+        loss = sum([loss_dict[key] * weight_loss[key] for key in loss_dict.keys()])
         if not debug:
             loss.backward()
             return loss
@@ -74,13 +94,14 @@ def optimizeShape(body_model, body_params, keypoints3d,
     loss_dict = closure(debug=True)
     for key in loss_dict.keys():
         loss_dict[key] = loss_dict[key].item()
-    optimizer = LBFGS(
-        opt_params, line_search_fn='strong_wolfe')
-    body_params = {key:val.detach().cpu().numpy() for key, val in body_params.items()}
+    optimizer = LBFGS(opt_params, line_search_fn='strong_wolfe')
+    body_params = {key: val.detach().cpu().numpy() for key, val in body_params.items()}
     return body_params
+
 
 N_BODY = 25
 N_HAND = 21
+
 
 def interp(left_value, right_value, weight, key='poses'):
     if key == 'Rh':
@@ -90,10 +111,11 @@ def interp(left_value, right_value, weight, key='poses'):
     elif key == 'poses':
         return left_value * weight + right_value * (1 - weight)
 
+
 def get_interp_by_keypoints(keypoints):
-    if len(keypoints.shape) == 3: # (nFrames, nJoints, 3)
+    if len(keypoints.shape) == 3:    # (nFrames, nJoints, 3)
         conf = keypoints[..., -1]
-    elif len(keypoints.shape) == 4: # (nViews, nFrames, nJoints)
+    elif len(keypoints.shape) == 4:    # (nViews, nFrames, nJoints)
         conf = keypoints[..., -1].sum(axis=0)
     else:
         raise NotImplementedError
@@ -103,39 +125,45 @@ def get_interp_by_keypoints(keypoints):
     if len(not_valid_frames) > 0:
         start = not_valid_frames[0]
         for i in range(1, len(not_valid_frames)):
-            if not_valid_frames[i] == not_valid_frames[i-1] + 1:
+            if not_valid_frames[i] == not_valid_frames[i - 1] + 1:
                 pass
-            else:# 改变位置了
-                end = not_valid_frames[i-1]
+            else:    # 改变位置了
+                end = not_valid_frames[i - 1]
                 ranges.append((start, end))
                 start = not_valid_frames[i]
         ranges.append((start, not_valid_frames[-1]))
+
     def interp_func(params):
         for start, end in ranges:
             # 对每个需要插值的区间: 这里直接使用最近帧进行插值了
             left = start - 1
             right = end + 1
-            for nf in range(start, end+1):
-                weight = (nf - left)/(right - left)
+            for nf in range(start, end + 1):
+                weight = (nf - left) / (right - left)
                 for key in ['Rh', 'Th', 'poses']:
-                    params[key][nf] = interp(params[key][left], params[key][right], 1-weight, key=key)
+                    params[key][nf] = interp(
+                        params[key][left], params[key][right], 1 - weight, key=key
+                    )
         return params
+
     return interp_func
+
 
 def interp_by_k3d(conf, params):
     for key in ['Rh', 'Th', 'poses']:
         params[key] = params[key].clone()
     # Totally invalid frames
-    not_valid_frames = torch.nonzero(conf.sum(dim=1).squeeze() < 0.01)[:, 0].detach().cpu().numpy().tolist()
+    not_valid_frames = torch.nonzero(conf.sum(dim=1).squeeze() < 0.01
+                                    )[:, 0].detach().cpu().numpy().tolist()
     # 遍历空白帧，选择起点和终点
     ranges = []
     if len(not_valid_frames) > 0:
         start = not_valid_frames[0]
         for i in range(1, len(not_valid_frames)):
-            if not_valid_frames[i] == not_valid_frames[i-1] + 1:
+            if not_valid_frames[i] == not_valid_frames[i - 1] + 1:
                 pass
-            else:# 改变位置了
-                end = not_valid_frames[i-1]
+            else:    # 改变位置了
+                end = not_valid_frames[i - 1]
                 ranges.append((start, end))
                 start = not_valid_frames[i]
         ranges.append((start, not_valid_frames[-1]))
@@ -143,35 +171,45 @@ def interp_by_k3d(conf, params):
         # 对每个需要插值的区间: 这里直接使用最近帧进行插值了
         left = start - 1
         right = end + 1
-        for nf in range(start, end+1):
-            weight = (nf - left)/(right - left)
+        for nf in range(start, end + 1):
+            weight = (nf - left) / (right - left)
             for key in ['Rh', 'Th', 'poses']:
-                params[key][nf] = interp(params[key][left], params[key][right], 1-weight, key=key)
+                params[key][nf] = interp(params[key][left], params[key][right], 1 - weight, key=key)
     return params
+
 
 def deepcopy_tensor(body_params):
     for key in body_params.keys():
         body_params[key] = body_params[key].clone()
     return body_params
 
+
 def dict_of_tensor_to_numpy(body_params):
-    body_params = {key:val.detach().cpu().numpy() for key, val in body_params.items()}
+    body_params = {key: val.detach().cpu().numpy() for key, val in body_params.items()}
     return body_params
+
 
 def get_prepare_smplx(body_params, cfg, nFrames):
     zero_pose = torch.zeros((nFrames, 3), device=cfg.device)
     if not cfg.OPT_HAND and cfg.model in ['smplh', 'smplx']:
-        zero_pose_hand = torch.zeros((nFrames, body_params['poses'].shape[1] - 66), device=cfg.device)
+        zero_pose_hand = torch.zeros((nFrames, body_params['poses'].shape[1] - 66),
+                                     device=cfg.device)
     elif cfg.OPT_HAND and not cfg.OPT_EXPR and cfg.model == 'smplx':
-        zero_pose_face = torch.zeros((nFrames, body_params['poses'].shape[1] - 78), device=cfg.device)
+        zero_pose_face = torch.zeros((nFrames, body_params['poses'].shape[1] - 78),
+                                     device=cfg.device)
 
     def pack(new_params):
         if not cfg.OPT_HAND and cfg.model in ['smplh', 'smplx']:
-            new_params['poses'] = torch.cat([zero_pose, new_params['poses'][:, 3:66], zero_pose_hand], dim=1)
+            new_params['poses'] = torch.cat([
+                zero_pose, new_params['poses'][:, 3:66], zero_pose_hand
+            ],
+                                            dim=1)
         else:
             new_params['poses'] = torch.cat([zero_pose, new_params['poses'][:, 3:]], dim=1)
         return new_params
+
     return pack
+
 
 def get_optParams(body_params, cfg, extra_params):
     for key, val in body_params.items():
@@ -195,9 +233,17 @@ def get_optParams(body_params, cfg, extra_params):
             opt_params.append(body_params['expression'])
     return opt_params
 
-def _optimizeSMPL(body_model, body_params, prepare_funcs, postprocess_funcs, 
-    loss_funcs, extra_params=None,
-    weight_loss={}, cfg=None):
+
+def _optimizeSMPL(
+    body_model,
+    body_params,
+    prepare_funcs,
+    postprocess_funcs,
+    loss_funcs,
+    extra_params=None,
+    weight_loss={},
+    cfg=None
+):
     """ A common interface for different optimization.
 
     Args:
@@ -208,17 +254,20 @@ def _optimizeSMPL(body_model, body_params, prepare_funcs, postprocess_funcs,
         weight_loss (Dict): weight
         cfg (Config): Config Node controling running mode
     """
-    loss_funcs = {key: val for key, val in loss_funcs.items() if key in weight_loss.keys() and weight_loss[key] > 0.}
+    loss_funcs = {
+        key: val
+        for key, val in loss_funcs.items() if key in weight_loss.keys() and weight_loss[key] > 0.
+    }
     if cfg.verbose:
         print('Loss Functions: ')
         for key, func in loss_funcs.items():
             print('  -> {:15s}: {}'.format(key, func.__doc__))
     opt_params = get_optParams(body_params, cfg, extra_params)
     grad_require(opt_params, True)
-    optimizer = LBFGS(opt_params, 
-        line_search_fn='strong_wolfe')
+    optimizer = LBFGS(opt_params, line_search_fn='strong_wolfe')
     PRINT_STEP = 100
     records = []
+
     def closure(debug=False):
         # 0. Prepare body parameters => new_params
         optimizer.zero_grad()
@@ -228,14 +277,17 @@ def _optimizeSMPL(body_model, body_params, prepare_funcs, postprocess_funcs,
         # 1. Compute keypoints => kpts_est
         kpts_est = body_model(return_verts=False, return_tensor=True, **new_params)
         # 2. Compute loss => loss_dict
-        loss_dict = {key:func(kpts_est=kpts_est, **new_params) for key, func in loss_funcs.items()}
+        loss_dict = {key: func(kpts_est=kpts_est, **new_params) for key, func in loss_funcs.items()}
         # 3. Summary and log
         cnt = len(records)
         if cfg.verbose and cnt % PRINT_STEP == 0:
-            print('{:-6d}: '.format(cnt) + ' '.join([key + ' %f'%(loss_dict[key].item()*weight_loss[key]) 
-                for key in loss_dict.keys() if weight_loss[key]>0]))
-        loss = sum([loss_dict[key]*weight_loss[key]
-                    for key in loss_dict.keys()])
+            print(
+                '{:-6d}: '.format(cnt) + ' '.join([
+                    key + ' %f' % (loss_dict[key].item() * weight_loss[key])
+                    for key in loss_dict.keys() if weight_loss[key] > 0
+                ])
+            )
+        loss = sum([loss_dict[key] * weight_loss[key] for key in loss_dict.keys()])
         records.append(loss.item())
         if debug:
             return loss_dict
@@ -248,13 +300,18 @@ def _optimizeSMPL(body_model, body_params, prepare_funcs, postprocess_funcs,
     grad_require(opt_params, False)
     loss_dict = closure(debug=True)
     if cfg.verbose:
-        print('{:-6d}: '.format(len(records)) + ' '.join([key + ' %f'%(loss_dict[key].item()*weight_loss[key]) 
-            for key in loss_dict.keys() if weight_loss[key]>0]))
-    loss_dict = {key:val.item() for key, val in loss_dict.items()}
+        print(
+            '{:-6d}: '.format(len(records)) + ' '.join([
+                key + ' %f' % (loss_dict[key].item() * weight_loss[key])
+                for key in loss_dict.keys() if weight_loss[key] > 0
+            ])
+        )
+    loss_dict = {key: val.item() for key, val in loss_dict.items()}
     # post-process the body_parameters
     for func in postprocess_funcs:
         body_params = func(body_params)
     return body_params
+
 
 def optimizePose3D(body_model, params, keypoints3d, weight, cfg):
     """ 
@@ -294,12 +351,18 @@ def optimizePose3D(body_model, params, keypoints3d, weight, cfg):
         loss_funcs['reg_expr'] = LossRegPoses(cfg).reg_expr
         loss_funcs['smooth_head'] = LossSmoothPoses(1, nFrames, cfg).head
 
-    postprocess_funcs = [
-        get_interp_by_keypoints(keypoints3d),
-        dict_of_tensor_to_numpy
-    ]
-    params = _optimizeSMPL(body_model, params, prepare_funcs, postprocess_funcs, loss_funcs, weight_loss=weight, cfg=cfg)
+    postprocess_funcs = [get_interp_by_keypoints(keypoints3d), dict_of_tensor_to_numpy]
+    params = _optimizeSMPL(
+        body_model,
+        params,
+        prepare_funcs,
+        postprocess_funcs,
+        loss_funcs,
+        weight_loss=weight,
+        cfg=cfg
+    )
     return params
+
 
 def optimizePose2D(body_model, params, bboxes, keypoints2d, Pall, weight, cfg):
     """ 
@@ -344,11 +407,16 @@ def optimizePose2D(body_model, params, bboxes, keypoints2d, Pall, weight, cfg):
         loss_funcs['reg_expr'] = LossRegPoses(cfg).reg_expr
         loss_funcs['smooth_head'] = LossSmoothPoses(1, nFrames, cfg).head
 
-    loss_funcs = {key:val for key, val in loss_funcs.items() if key in weight.keys()}
-    
-    postprocess_funcs = [
-        get_interp_by_keypoints(keypoints2d),
-        dict_of_tensor_to_numpy
-    ]
-    params = _optimizeSMPL(body_model, params, prepare_funcs, postprocess_funcs, loss_funcs, weight_loss=weight, cfg=cfg)
+    loss_funcs = {key: val for key, val in loss_funcs.items() if key in weight.keys()}
+
+    postprocess_funcs = [get_interp_by_keypoints(keypoints2d), dict_of_tensor_to_numpy]
+    params = _optimizeSMPL(
+        body_model,
+        params,
+        prepare_funcs,
+        postprocess_funcs,
+        loss_funcs,
+        weight_loss=weight,
+        cfg=cfg
+    )
     return params

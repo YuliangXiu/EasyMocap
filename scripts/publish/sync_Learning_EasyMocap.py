@@ -129,22 +129,17 @@ easymocap:
 '''
 
 sync_config = {
-    'EasyMocap': {
-        'src': '../EasyMocapPublic',
-        'dst': '.',
-        'filetree': filetree_e
-    },
-    'Learn': {
-        'src': '../Learning_EasyMocap',
-        'dst': '.',
-        'filetree': filetree_l
-    }
+    'EasyMocap': {'src': '../EasyMocapPublic', 'dst': '.', 'filetree': filetree_e}, 'Learn':
+    {'src': '../Learning_EasyMocap', 'dst': '.', 'filetree': filetree_l}
 }
 import os
 import shutil
-import yaml
 from os.path import join
+
+import yaml
+
 from easymocap.mytools.debug_utils import log, mywarn
+
 
 def compare_files(file1, file2):
     with open(file1, 'r') as f1, open(file2, 'r') as f2:
@@ -154,6 +149,7 @@ def compare_files(file1, file2):
             return True
         else:
             return False
+
 
 def copy_node(dir, nodes):
     for node in nodes:
@@ -183,7 +179,8 @@ def copy_node(dir, nodes):
         elif isinstance(node, dict):
             for subdir, subnode in node.items():
                 copy_node(join(dir, subdir), subnode)
-    
+
+
 if __name__ == '__main__':
     for cfg_name, cfg in sync_config.items():
         SRC = cfg['src']

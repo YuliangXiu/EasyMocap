@@ -1,8 +1,10 @@
 import os
+from os.path import join
+
 import numpy as np
 from tqdm import tqdm
+
 from easymocap.mytools.reader import read_json
-from os.path import join
 
 if __name__ == '__main__':
     import argparse

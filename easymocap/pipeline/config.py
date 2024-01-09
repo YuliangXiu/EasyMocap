@@ -1,4 +1,3 @@
-
 class Config:
     OPT_R = False
     OPT_T = False
@@ -11,6 +10,7 @@ class Config:
     verbose = False
     model = 'smpl'
     device = None
+
     def __init__(self, args=None) -> None:
         if args is not None:
             self.verbose = args.verbose

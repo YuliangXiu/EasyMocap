@@ -3,9 +3,8 @@ import struct
 import sys
 
 import pytest
-
-from pybind11_tests import buffers as m
 from pybind11_tests import ConstructorStats
+from pybind11_tests import buffers as m
 
 PY3 = sys.version_info[0] >= 3
 
@@ -17,7 +16,7 @@ with pytest.suppress(ImportError):
 
 def test_from_python():
     with pytest.raises(RuntimeError) as excinfo:
-        m.Matrix(np.array([1, 2, 3]))  # trying to assign a 1D array
+        m.Matrix(np.array([1, 2, 3]))    # trying to assign a 1D array
     assert str(excinfo.value) == "Incompatible buffer format!"
 
     m3 = np.array([[1, 2, 3], [4, 5, 6]]).astype(np.float32)
@@ -65,7 +64,7 @@ def test_to_python():
     del mat
     pytest.gc_collect()
     assert cstats.alive() == 1
-    del mat2  # holds a mat reference
+    del mat2    # holds a mat reference
     pytest.gc_collect()
     assert cstats.alive() == 0
     assert cstats.values() == ["5x4 matrix"]

@@ -1,9 +1,16 @@
 import os
-from os.path import exists
-from os.path import join
-from easymocap.config import Config, CfgNode
 from glob import glob
-from easymocap.mytools.debug_utils import run_cmd, check_exists, myerror, log, mywarn
+from os.path import exists, join
+
+from easymocap.config import Config
+from easymocap.mytools.debug_utils import (
+    check_exists,
+    log,
+    myerror,
+    mywarn,
+    run_cmd,
+)
+
 
 def check_image(path):
     if not check_exists(join(path, 'images')):
@@ -11,6 +18,7 @@ def check_image(path):
         if exists(join(path, 'videos')):
             cmd = 'python3 apps/preprocess/extract_image.py {}'.format(path)
             run_cmd(cmd)
+
 
 def check_camera(path, mode):
     if mode == 'scan':
@@ -20,10 +28,12 @@ def check_camera(path, mode):
         myerror('[error] No camera calibration found in {}'.format(path))
         raise FileNotFoundError
 
+
 def format_subs(subs):
-    subs = ', '.join(list(map(lambda x:"'{}'".format(x), subs)))
+    subs = ', '.join(list(map(lambda x: "'{}'".format(x), subs)))
     subs = f'''"[{subs}]"'''
     return subs
+
 
 def mocap_demo(path, mode, exp=None):
     # check images
@@ -62,7 +72,7 @@ def mocap_demo(path, mode, exp=None):
         if args.vismatch:
             opt_data += ' args.writer.vismatch.enable True'
         if args.disable_visrepro:
-            opt_data += ' args.writer.visrepro.enable False'        
+            opt_data += ' args.writer.visrepro.enable False'
         if args.disable_crop:
             opt_data += ' args.writer.vismatch.crop False args.writer.visdetect.crop False '
         if args.ranges is not None:
@@ -70,10 +80,7 @@ def mocap_demo(path, mode, exp=None):
         # config for experiment
         opt_exp = ' args.debug {}'.format('True' if args.debug else 'False')
         cmd = 'python3 apps/fit/triangulate1p.py --cfg_data {cfg_data} --opt_data {opt_data} --cfg_exp {cfg_exp} --opt_exp {opt_exp}'.format(
-            cfg_data=cfg_data,
-            cfg_exp=cfg_exp,
-            opt_data=opt_data,
-            opt_exp=opt_exp
+            cfg_data=cfg_data, cfg_exp=cfg_exp, opt_data=opt_data, opt_exp=opt_exp
         )
         run_cmd(cmd)
         # compose videos
@@ -133,6 +140,7 @@ def mocap_demo(path, mode, exp=None):
         )
         run_cmd(cmd)
 
+
 def mono_demo(path, mode, exp=None):
     check_image(path)
     # check cameras
@@ -145,7 +153,7 @@ def mono_demo(path, mode, exp=None):
         args.subs = sorted(os.listdir(join(path, 'images')))
     for sub in args.subs:
         outdir = join(path, 'output-{}'.format(exp), 'smplmesh')
-        videoname = join(outdir, sub+'.mp4')
+        videoname = join(outdir, sub + '.mp4')
         if os.path.exists(videoname) and not args.restart:
             continue
         # load config
@@ -158,7 +166,10 @@ def mono_demo(path, mode, exp=None):
 
         # opt data
         output = join(path, 'output-{}'.format(exp))
-        opt_data = ['args.path', path, 'args.out', output, 'args.subs', format_subs([sub]).replace('"', '')]
+        opt_data = [
+            'args.path', path, 'args.out', output, 'args.subs',
+            format_subs([sub]).replace('"', '')
+        ]
         opt_data += args.opt_data
         opt_data += config.get('opt_data', [])
         if 'camera' in _config_data.args.keys():
@@ -194,6 +205,7 @@ def mono_demo(path, mode, exp=None):
         )
         run_cmd(cmd)
 
+
 def run_triangulation(cfg_data, cfg_exp, path, out, args):
     opt_data = f'args.path {path} args.out {out}'
     if args.subs is not None:
@@ -219,16 +231,16 @@ def run_triangulation(cfg_data, cfg_exp, path, out, args):
     # config for experiment
     opt_exp = ' args.debug {}'.format('True' if args.debug else 'False')
     if args.triangulator_min_views is not None:
-        opt_exp += ' args.config.keypoints2d.min_view {view}'.format(view=args.triangulator_min_views)
+        opt_exp += ' args.config.keypoints2d.min_view {view}'.format(
+            view=args.triangulator_min_views
+        )
     cmd = 'python3 apps/fit/triangulate1p.py --cfg_data {cfg_data} --opt_data {opt_data} --cfg_exp {cfg_exp} --opt_exp {opt_exp}'.format(
-        cfg_data=cfg_data,
-        cfg_exp=cfg_exp,
-        opt_data=opt_data,
-        opt_exp=opt_exp
+        cfg_data=cfg_data, cfg_exp=cfg_exp, opt_data=opt_data, opt_exp=opt_exp
     )
     run_cmd(cmd)
     cmd = f'python3 -m easymocap.visualize.ffmpeg_wrapper {out}/match --fps {args.fps}'
     run_cmd(cmd)
+
 
 def append_mocap_flags(path, output, cfg_data, cfg_model, cfg_exp, config, args):
     cmd = f'python3 apps/fit/fit.py --cfg_model {cfg_model} --cfg_data {cfg_data} --cfg_exp {cfg_exp}'
@@ -289,6 +301,7 @@ def append_mocap_flags(path, output, cfg_data, cfg_model, cfg_exp, config, args)
         run_cmd(cmd)
     return cmd
 
+
 def workflow(work, args):
     if not os.path.exists(join(args.path, 'images')):
         mywarn('Images not exists, extract it use default setting')
@@ -321,7 +334,9 @@ def workflow(work, args):
         cfg_exp = workflow.triangulation.exp
         out = join(args.path, workflow.triangulation.out)
         # check output
-        if not args.restart_mocap and os.path.exists(join(out, 'keypoints3d')) and len(os.listdir(join(out, 'keypoints3d'))) > 10:
+        if not args.restart_mocap and os.path.exists(join(out, 'keypoints3d')) and len(
+            os.listdir(join(out, 'keypoints3d'))
+        ) > 10:
             log('[Skip] Triangulation already done, skipping...')
         else:
             run_triangulation(cfg_data, cfg_exp, args.path, out, args)
@@ -347,6 +362,7 @@ def workflow(work, args):
                 cmd = cmd.replace('${vis_scale}', '{}'.format(args.vis_scale))
             run_cmd(cmd)
 
+
 if __name__ == '__main__':
     config_dict = Config.load('config/mocap_index.yml')
     modes = list(config_dict.keys())
@@ -358,8 +374,9 @@ if __name__ == '__main__':
         usage += '\t{:20s}: {}\n'.format(mode, config.comment)
     import argparse
     parser = argparse.ArgumentParser(usage=usage)
-    parser.add_argument('--work', type=str, default=None,
-        help='This is the most top abstract of the workflow')
+    parser.add_argument(
+        '--work', type=str, default=None, help='This is the most top abstract of the workflow'
+    )
     parser.add_argument('path', type=str)
     parser.add_argument('--num', type=int, default=1)
     parser.add_argument('--fps', type=int, default=50)
@@ -382,8 +399,7 @@ if __name__ == '__main__':
     parser.add_argument('--bodyonly', action='store_true')
     parser.add_argument('--disable_visdetec', action='store_true')
     parser.add_argument('--vismatch', action='store_true')
-    parser.add_argument('--render_side', action='store_true', 
-        help='render the mesh on the right')
+    parser.add_argument('--render_side', action='store_true', help='render the mesh on the right')
     parser.add_argument('--disable_visrepro', action='store_true')
     parser.add_argument('--disable_vismesh', action='store_true')
     parser.add_argument('--disable_crop', action='store_true')
@@ -394,7 +410,7 @@ if __name__ == '__main__':
         workflow(args.work, args)
         exit()
     if args.mono:
-        mono_demo(args.path, mode='mono-'+args.mode, exp=args.exp)
+        mono_demo(args.path, mode='mono-' + args.mode, exp=args.exp)
     else:
         if args.subs is not None:
             args.subs = format_subs(args.subs)

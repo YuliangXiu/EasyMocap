@@ -1,9 +1,10 @@
-import torch
-import math
 import collections.abc
-from itertools import repeat
+import math
 import warnings
-import torch.nn as nn
+from itertools import repeat
+
+import torch
+
 
 def drop_path(x, drop_prob: float = 0., training: bool = False, scale_by_keep: bool = True):
     """Drop paths (Stochastic Depth) per sample (when applied in main path of residual blocks).

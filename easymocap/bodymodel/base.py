@@ -11,6 +11,7 @@ import torch
 
 from ..mytools.file_utils import myarray2string
 
+
 class Model(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
@@ -24,9 +25,10 @@ class Model(torch.nn.Module):
 
     def keypoints(self, params, **kwargs):
         return self.forward(return_verts=False, **kwargs, **params)
-    
+
     def transform(self, params, **kwargs):
         raise NotImplementedError
+
 
 class ComposedModel(torch.nn.Module):
     def __init__(self, config_dict):
@@ -34,12 +36,14 @@ class ComposedModel(torch.nn.Module):
         for name, config in config_dict.items():
             pass
 
+
 class Params(dict):
     @classmethod
     def merge(self, params_list, share_shape=True, stack=np.vstack):
         output = {}
         for key in params_list[0].keys():
-            if key == 'id':continue
+            if key == 'id':
+                continue
             output[key] = stack([v[key] for v in params_list])
         if share_shape:
             output['shapes'] = output['shapes'].mean(axis=0, keepdims=True)
@@ -47,7 +51,7 @@ class Params(dict):
 
     def __len__(self):
         return len(self['poses'])
-    
+
     def __getattr__(self, name):
         if name in self:
             return self[name]
@@ -79,7 +83,8 @@ class Params(dict):
         elif shapes.shape[0] == 1:
             ret['shapes'] = shapes[0]
         else:
-            import ipdb; ipdb.set_trace()
+            import ipdb
+            ipdb.set_trace()
         if index >= 1 and poses.shape[0] == 1:
             ret['poses'] = poses[0]
         else:
@@ -88,17 +93,19 @@ class Params(dict):
             if key == 'id':
                 ret[key] = self[key]
                 continue
-            if key in ret.keys():continue
+            if key in ret.keys():
+                continue
             if index >= 1 and val.shape[0] == 1:
                 ret[key] = val[0]
             else:
                 ret[key] = val[index]
         for key, val in ret.items():
-            if key == 'id': continue
+            if key == 'id':
+                continue
             if len(val.shape) == 1:
                 ret[key] = val[None]
         return Params(**ret)
-    
+
     def to_multiperson(self, pids):
         results = []
         for i, pid in enumerate(pids):
@@ -120,7 +127,7 @@ class Params(dict):
             if key != lastkey:
                 ret += ',\n'
         return ret
-    
+
     def shape(self):
         ret = ''
         lastkey = list(self.keys())[-1]

@@ -1,8 +1,15 @@
 import os
-from easymocap.mytools.file_utils import write_keypoints3d, write_smpl, write_vertices
-from easymocap.annotator.file_utils import save_annot
 from os.path import join
+
 from tqdm import tqdm
+
+from easymocap.annotator.file_utils import save_annot
+from easymocap.mytools.file_utils import (
+    write_keypoints3d,
+    write_smpl,
+    write_vertices,
+)
+
 
 class Write:
     def __init__(self, output='/tmp', name='keypoints3d') -> None:

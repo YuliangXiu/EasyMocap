@@ -7,17 +7,22 @@
   @ FilePath: /EasyMocapPublic/easymocap/mytools/colmap_wrapper.py
 '''
 
-import shutil
-import sys
 import os
+import shutil
 import sqlite3
-import numpy as np
+import sys
 from os.path import join
-import cv2
-from .debug_utils import mkdir, run_cmd, log, mywarn
-from .colmap_structure import Camera, Image, CAMERA_MODEL_NAMES
-from .colmap_structure import rotmat2qvec
-from .colmap_structure import read_points3d_binary
+
+import numpy as np
+
+from .colmap_structure import (
+    CAMERA_MODEL_NAMES,
+    Camera,
+    Image,
+    read_points3d_binary,
+    rotmat2qvec,
+)
+from .debug_utils import log, mkdir, mywarn, run_cmd
 
 IS_PYTHON3 = sys.version_info[0] >= 3
 
@@ -97,14 +102,10 @@ CREATE_NAME_INDEX = \
     "CREATE UNIQUE INDEX IF NOT EXISTS index_name ON images(name)"
 
 CREATE_ALL = "; ".join([
-    CREATE_CAMERAS_TABLE,
-    CREATE_IMAGES_TABLE,
-    CREATE_KEYPOINTS_TABLE,
-    CREATE_DESCRIPTORS_TABLE,
-    CREATE_MATCHES_TABLE,
-    CREATE_TWO_VIEW_GEOMETRIES_TABLE,
-    CREATE_NAME_INDEX
+    CREATE_CAMERAS_TABLE, CREATE_IMAGES_TABLE, CREATE_KEYPOINTS_TABLE, CREATE_DESCRIPTORS_TABLE,
+    CREATE_MATCHES_TABLE, CREATE_TWO_VIEW_GEOMETRIES_TABLE, CREATE_NAME_INDEX
 ])
+
 
 def image_ids_to_pair_id(image_id1, image_id2):
     if image_id1 > image_id2:
@@ -117,13 +118,15 @@ def pair_id_to_image_ids(pair_id):
     image_id1 = (pair_id - image_id2) // MAX_IMAGE_ID
     return image_id1, image_id2
 
+
 def array_to_blob(array):
     if IS_PYTHON3:
         return array.tobytes()
     else:
         return np.getbuffer(array)
 
-def blob_to_array(blob, dtype, shape=(-1,)):
+
+def blob_to_array(blob, dtype, shape=(-1, )):
     if blob is None:
         return np.empty((0, 2), dtype=dtype)
     if IS_PYTHON3:
@@ -133,11 +136,9 @@ def blob_to_array(blob, dtype, shape=(-1,)):
 
 
 class COLMAPDatabase(sqlite3.Connection):
-
     @staticmethod
     def connect(database_path):
         return sqlite3.connect(database_path, factory=COLMAPDatabase)
-
 
     def __init__(self, *args, **kwargs):
         super(COLMAPDatabase, self).__init__(*args, **kwargs)
@@ -157,72 +158,88 @@ class COLMAPDatabase(sqlite3.Connection):
             lambda: self.executescript(CREATE_MATCHES_TABLE)
         self.create_name_index = lambda: self.executescript(CREATE_NAME_INDEX)
 
-    def add_camera(self, model, width, height, params,
-                   prior_focal_length=False, camera_id=None):
+    def add_camera(self, model, width, height, params, prior_focal_length=False, camera_id=None):
         params = np.asarray(params, np.float64)
         cursor = self.execute(
             "INSERT INTO cameras VALUES (?, ?, ?, ?, ?, ?)",
-            (camera_id, model, width, height, array_to_blob(params),
-             prior_focal_length))
+            (camera_id, model, width, height, array_to_blob(params), prior_focal_length)
+        )
         return cursor.lastrowid
 
-    def add_image(self, name, camera_id,
-                  prior_q=np.full(4, np.NaN), prior_t=np.full(3, np.NaN), image_id=None):
+    def add_image(
+        self,
+        name,
+        camera_id,
+        prior_q=np.full(4, np.NaN),
+        prior_t=np.full(3, np.NaN),
+        image_id=None
+    ):
         cursor = self.execute(
-            "INSERT INTO images VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (image_id, name, camera_id, prior_q[0], prior_q[1], prior_q[2],
-             prior_q[3], prior_t[0], prior_t[1], prior_t[2]))
+            "INSERT INTO images VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (
+                image_id, name, camera_id, prior_q[0], prior_q[1], prior_q[2], prior_q[3],
+                prior_t[0], prior_t[1], prior_t[2]
+            )
+        )
         return cursor.lastrowid
 
     def add_keypoints(self, image_id, keypoints):
-        assert(len(keypoints.shape) == 2)
-        assert(keypoints.shape[1] in [2, 4, 6])
+        assert (len(keypoints.shape) == 2)
+        assert (keypoints.shape[1] in [2, 4, 6])
 
         keypoints = np.asarray(keypoints, np.float32)
         self.execute(
             "INSERT INTO keypoints VALUES (?, ?, ?, ?)",
-            (image_id,) + keypoints.shape + (array_to_blob(keypoints),))
+            (image_id, ) + keypoints.shape + (array_to_blob(keypoints), )
+        )
 
     def add_descriptors(self, image_id, descriptors):
         descriptors = np.ascontiguousarray(descriptors, np.uint8)
         self.execute(
             "INSERT INTO descriptors VALUES (?, ?, ?, ?)",
-            (image_id,) + descriptors.shape + (array_to_blob(descriptors),))
+            (image_id, ) + descriptors.shape + (array_to_blob(descriptors), )
+        )
 
     def add_matches(self, image_id1, image_id2, matches):
-        assert(len(matches.shape) == 2)
-        assert(matches.shape[1] == 2)
+        assert (len(matches.shape) == 2)
+        assert (matches.shape[1] == 2)
 
         if image_id1 > image_id2:
-            matches = matches[:,::-1]
+            matches = matches[:, ::-1]
 
         pair_id = image_ids_to_pair_id(image_id1, image_id2)
         matches = np.asarray(matches, np.uint32)
         self.execute(
             "INSERT INTO matches VALUES (?, ?, ?, ?)",
-            (pair_id,) + matches.shape + (array_to_blob(matches),))
+            (pair_id, ) + matches.shape + (array_to_blob(matches), )
+        )
 
     def add_two_view_geometry(self, image_id1, image_id2, matches, extra, config=2):
-        assert(len(matches.shape) == 2)
-        assert(matches.shape[1] == 2)
+        assert (len(matches.shape) == 2)
+        assert (matches.shape[1] == 2)
 
         if image_id1 > image_id2:
-            matches = matches[:,::-1]
+            matches = matches[:, ::-1]
 
         pair_id = image_ids_to_pair_id(image_id1, image_id2)
         matches = np.asarray(matches, np.uint32)
         if 'qvec' in extra.keys():
             self.execute(
                 "INSERT INTO two_view_geometries VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (pair_id,) + matches.shape + (array_to_blob(matches), config,
-                array_to_blob(extra['F']), array_to_blob(extra['E']), array_to_blob(extra['H']),
-                array_to_blob(extra['qvec']), array_to_blob(extra['tvec'])))
+                (pair_id, ) + matches.shape + (
+                    array_to_blob(matches), config, array_to_blob(extra['F']),
+                    array_to_blob(extra['E']), array_to_blob(extra['H']),
+                    array_to_blob(extra['qvec']), array_to_blob(extra['tvec'])
+                )
+            )
         else:
             self.execute(
                 "INSERT INTO two_view_geometries VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (pair_id,) + matches.shape + (array_to_blob(matches), config,
-                array_to_blob(extra['F']), array_to_blob(extra['E']), array_to_blob(extra['H'])))
-    
+                (pair_id, ) + matches.shape + (
+                    array_to_blob(matches), config, array_to_blob(extra['F']),
+                    array_to_blob(extra['E']), array_to_blob(extra['H'])
+                )
+            )
+
     def read_images(self):
         image_id_to_name, name_to_image_id = {}, {}
         image_results = self.execute("SELECT * FROM images")
@@ -243,7 +260,7 @@ class COLMAPDatabase(sqlite3.Connection):
             else:
                 image_id_to_keypoints[mapping[image_id]] = keypoints
         return image_id_to_keypoints
-    
+
     def read_descriptors(self, mapping=None):
         image_id_to_descriptors = {}
         descriptors_results = self.execute("SELECT * FROM descriptors")
@@ -270,20 +287,14 @@ class COLMAPDatabase(sqlite3.Connection):
                 image_id1 = mapping[image_id1]
             matches[(image_id0, image_id1)] = match
         return matches
-    
+
     def read_two_view_geometry(self, mapping=None):
         geometry = self.execute("SELECT * FROM two_view_geometries")
         geometries = {}
         for _data in geometry:
             if len(_data) == 10:
                 pair_id, rows, cols, data, config, F, E, H, qvec, tvec = _data
-                extra = {
-                    'F': F,
-                    'E': E,
-                    'H': H,
-                    'qvec': qvec,
-                    'tvec': tvec
-                }
+                extra = {'F': F, 'E': E, 'H': H, 'qvec': qvec, 'tvec': tvec}
             elif len(_data) == 8:
                 pair_id, rows, cols, data, config, F, E, H = _data
                 extra = {
@@ -295,12 +306,16 @@ class COLMAPDatabase(sqlite3.Connection):
                 extra[key] = blob_to_array(val, dtype=np.float64)
             image_id0, image_id1 = pair_id_to_image_ids(pair_id)
             match = blob_to_array(data, dtype=np.uint32, shape=(rows, cols))
-            if rows == 0:continue
+            if rows == 0:
+                continue
             if mapping is not None:
                 image_id0 = mapping[image_id0]
                 image_id1 = mapping[image_id1]
-            geometries[(image_id0, image_id1)] = {'matches': match, 'extra': extra, 'config': config}
+            geometries[(image_id0, image_id1)] = {
+                'matches': match, 'extra': extra, 'config': config
+            }
         return geometries
+
 
 def create_empty_db(database_path):
     if os.path.exists(database_path):
@@ -312,31 +327,34 @@ def create_empty_db(database_path):
     db.commit()
     db.close()
 
+
 def create_cameras(db, cameras, subs, width, height, share_intri=True):
     model = 'OPENCV'
     if share_intri:
         cam_id = 1
         K = cameras[subs[0]]['K']
         D = cameras[subs[0]]['dist'].reshape(1, 5)
-        fx, fy, cx, cy, k1, k2, p1, p2, k3, k4, k5, k6 = K[0, 0], K[1, 1], K[0, 2], K[1, 2], D[0, 0], D[0, 1], D[0, 2], D[0, 3], D[0, 4], 0, 0, 0
-        
+        fx, fy, cx, cy, k1, k2, p1, p2, k3, k4, k5, k6 = K[0, 0], K[1, 1], K[0, 2], K[1, 2], D[
+            0, 0], D[0, 1], D[0, 2], D[0, 3], D[0, 4], 0, 0, 0
+
         params = [fx, fy, cx, cy, k1, k2, p1, p2]
         # params = [fx, fy, cx, cy, 0, 0, 0, 0]
-        camera = Camera(
-            id=cam_id,
-            model=model,
-            width=width,
-            height=height,
-            params=params
-        )
+        camera = Camera(id=cam_id, model=model, width=width, height=height, params=params)
         cameras_colmap = {cam_id: camera}
-        cameras_map = {sub:cam_id for sub in subs}
-        # 
-        db.add_camera(CAMERA_MODEL_NAMES[model].model_id, width, height, params,
-                   prior_focal_length=False, camera_id=cam_id)
+        cameras_map = {sub: cam_id for sub in subs}
+        #
+        db.add_camera(
+            CAMERA_MODEL_NAMES[model].model_id,
+            width,
+            height,
+            params,
+            prior_focal_length=False,
+            camera_id=cam_id
+        )
     else:
         raise NotImplementedError
     return cameras_colmap, cameras_map
+
 
 def create_images(db, cameras, cameras_map, image_names):
     subs = sorted(list(image_names.keys()))
@@ -357,9 +375,15 @@ def create_images(db, cameras, cameras_map, image_names):
             point3D_ids=[]
         )
         images[img_id] = image
-        db.add_image(image.name, camera_id=image.camera_id,
-            prior_q=image.qvec, prior_t=image.tvec, image_id=img_id)
+        db.add_image(
+            image.name,
+            camera_id=image.camera_id,
+            prior_q=image.qvec,
+            prior_t=image.tvec,
+            image_id=img_id
+        )
     return images
+
 
 def copy_images(data, out, nf=0, copy_func=shutil.copyfile, mask='mask', add_mask=True):
     subs = sorted(os.listdir(join(data, 'images')))
@@ -382,8 +406,10 @@ def copy_images(data, out, nf=0, copy_func=shutil.copyfile, mask='mask', add_mas
             copy_func(mskname, dstname)
     return True, image_names
 
-def colmap_feature_extract(colmap, path, share_camera, add_mask, gpu=False,
-    share_camera_per_folder=False):
+
+def colmap_feature_extract(
+    colmap, path, share_camera, add_mask, gpu=False, share_camera_per_folder=False
+):
     '''
 struct SiftMatchingOptions {
   // Number of threads for feature matching and geometric verification.
@@ -441,6 +467,7 @@ struct SiftMatchingOptions {
 --SiftExtraction.peak_threshold 0.006 \
 --ImageReader.camera_model OPENCV \
 '
+
     if share_camera and not share_camera_per_folder:
         cmd += ' --ImageReader.single_camera 1'
     elif share_camera_per_folder:
@@ -452,6 +479,7 @@ struct SiftMatchingOptions {
         cmd += f' --ImageReader.mask_path {path}/mask'
     cmd += f' >> {path}/log.txt'
     run_cmd(cmd)
+
 
 def colmap_feature_match(colmap, path, gpu=False):
     cmd = f'{colmap} exhaustive_matcher --database_path {path}/database.db \
@@ -465,11 +493,13 @@ def colmap_feature_match(colmap, path, gpu=False):
 --SiftMatching.max_num_trials 10000 \
 --SiftMatching.min_inlier_ratio 0.25 \
 --SiftMatching.min_num_inliers 30'
+
     if gpu:
         cmd += ' --SiftMatching.use_gpu 1'
         cmd += ' --SiftMatching.gpu_index 0'
     cmd += f' >> {path}/log.txt'
     run_cmd(cmd)
+
 
 def colmap_ba(colmap, path, with_init=False):
     if with_init:
@@ -481,12 +511,14 @@ def colmap_ba(colmap, path, with_init=False):
 --Mapper.ignore_watermarks 1 \
 --Mapper.filter_max_reproj_error 2 \
 >> {path}/log.txt'
+
         run_cmd(cmd)
         cmd = f'{colmap} bundle_adjuster \
 --input_path {path}/sparse/0 \
 --output_path {path}/sparse/0 \
 --BundleAdjustment.max_num_iterations 1000 \
 >> {path}/log.txt'
+
         run_cmd(cmd)
         points3d = read_points3d_binary(join(path, 'sparse', '0', 'points3D.bin'))
         pids = list(points3d.keys())
@@ -498,8 +530,9 @@ def colmap_ba(colmap, path, with_init=False):
     --Mapper.ba_refine_principal_point 1 \
     --Mapper.ba_global_max_num_iterations 1000 \
     >> {path}/log.txt'
+
         run_cmd(cmd)
-    
+
 
 def colmap_dense(colmap, path):
     mkdir(join(path, 'dense'))
@@ -511,11 +544,12 @@ def colmap_dense(colmap, path):
 --PatchMatchStereo.geom_consistency true \
 >> {path}/log.txt'
 
-    run_cmd(cmd)        
+    run_cmd(cmd)
     cmd = f'{colmap} stereo_fusion \
 --workspace_path {path}/dense \
 --workspace_format COLMAP \
 --input_type geometric \
 --output_path {path}/dense/fused.ply \
 >> {path}/log.txt'
-    run_cmd(cmd)        
+
+    run_cmd(cmd)

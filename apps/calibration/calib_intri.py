@@ -5,25 +5,26 @@
   @ LastEditTime: 2022-10-11 16:36:12
   @ FilePath: /EasyMocapPublic/apps/calibration/calib_intri.py
 '''
+import os
+import random
 # This script calibrate each intrinsic parameters
 import shutil
-import random
-from easymocap.mytools.debug_utils import log, mywarn
-from easymocap.mytools.vis_base import plot_points2d
-from easymocap.mytools import write_intri, read_json, Timer
-import numpy as np
-import cv2
-import os
-from os.path import join
 from glob import glob
-from easymocap.annotator.chessboard import get_lines_chessboard
+from os.path import join
+
+import cv2
+import numpy as np
 from tqdm import tqdm
+
+from easymocap.mytools import Timer, read_json, write_intri
+from easymocap.mytools.debug_utils import log, mywarn
+
 
 def read_chess(chessname):
     data = read_json(chessname)
     k3d = np.array(data['keypoints3d'], dtype=np.float32)
     k2d = np.array(data['keypoints2d'], dtype=np.float32)
-    if (k2d[:, -1] > 0.).sum() < k2d.shape[0]//2:
+    if (k2d[:, -1] > 0.).sum() < k2d.shape[0] // 2:
         return False, k2d, k3d
     if k2d[:, -1].sum() < k2d.shape[0]:
         valid = k2d[:, -1] > 0.1
@@ -32,6 +33,7 @@ def read_chess(chessname):
     # TODO:去除正对相机的
     # TODO:去除各条线不平行的噪声
     return True, k2d, k3d
+
 
 def pop(k2ds_, k3ds_, valid_idx, imgnames, max_num):
     k2ds = np.stack(k2ds_)
@@ -50,7 +52,7 @@ def pop(k2ds_, k3ds_, valid_idx, imgnames, max_num):
         cv2.waitKey(10)
         print('remove: ', imgnames[valid_idx[remove_id]], imgnames[valid_idx[idx]])
     indices = indices.tolist()
-    indices.sort(reverse=True, key=lambda x:col[x])
+    indices.sort(reverse=True, key=lambda x: col[x])
     removed = set()
     for idx in indices:
         remove_id = col[idx]
@@ -60,6 +62,7 @@ def pop(k2ds_, k3ds_, valid_idx, imgnames, max_num):
         valid_idx.pop(remove_id)
         k2ds_.pop(remove_id)
         k3ds_.pop(remove_id)
+
 
 def load_chessboards(chessnames, imagenames, max_image, sample_image=-1, out='debug-calib'):
     os.makedirs(out, exist_ok=True)
@@ -87,32 +90,35 @@ def load_chessboards(chessnames, imagenames, max_image, sample_image=-1, out='de
         shutil.copyfile(imagenames[idx], join(out, '{:06d}.jpg'.format(ii)))
     return k3ds_, k2ds_
 
+
 def calib_intri_share(path, image, ext):
     camnames = sorted(os.listdir(join(path, image)))
     camnames = [cam for cam in camnames if os.path.isdir(join(path, image, cam))]
 
     imagenames = sorted(glob(join(path, image, '*', '*' + ext)))
     chessnames = sorted(glob(join(path, 'chessboard', '*', '*.json')))
-    k3ds_, k2ds_ = load_chessboards(chessnames, imagenames, args.num, args.sample, out=join(args.path, 'output'))
+    k3ds_, k2ds_ = load_chessboards(
+        chessnames, imagenames, args.num, args.sample, out=join(args.path, 'output')
+    )
     with Timer('calibrate'):
         print('[Info] start calibration with {} detections'.format(len(k2ds_)))
         gray = cv2.imread(imagenames[0], 0)
         k3ds = k3ds_
         k2ds = [np.ascontiguousarray(k2d[:, :-1]) for k2d in k2ds_]
         ret, K, dist, rvecs, tvecs = cv2.calibrateCamera(
-            k3ds, k2ds, gray.shape[::-1], None, None,
-            flags=cv2.CALIB_FIX_K3)
+            k3ds, k2ds, gray.shape[::-1], None, None, flags=cv2.CALIB_FIX_K3
+        )
         cameras = {}
         for cam in camnames:
             cameras[cam] = {
                 'K': K,
-                'dist': dist  # dist: (1, 5)
+                'dist': dist    # dist: (1, 5)
             }
         if True:
             img = cv2.imread(imagenames[0])
-            h,  w = img.shape[:2]
-            newcameramtx, roi = cv2.getOptimalNewCameraMatrix(K, dist, (w,h), 1, (w,h))
-            mapx, mapy = cv2.initUndistortRectifyMap(K, dist, None, newcameramtx, (w,h), 5)
+            h, w = img.shape[:2]
+            newcameramtx, roi = cv2.getOptimalNewCameraMatrix(K, dist, (w, h), 1, (w, h))
+            mapx, mapy = cv2.initUndistortRectifyMap(K, dist, None, newcameramtx, (w, h), 5)
             for imgname in tqdm(imagenames):
                 img = cv2.imread(imgname)
                 dst = cv2.remap(img, mapx, mapy, cv2.INTER_LINEAR)
@@ -120,25 +126,28 @@ def calib_intri_share(path, image, ext):
                 cv2.imwrite(outname, dst)
         write_intri(join(path, 'output', 'intri.yml'), cameras)
 
+
 def calib_intri(path, image, ext):
     camnames = sorted(os.listdir(join(path, image)))
     camnames = [cam for cam in camnames if os.path.isdir(join(path, image, cam))]
     cameras = {}
     for ic, cam in enumerate(camnames):
-        imagenames = sorted(glob(join(path, image, cam, '*'+ext)))
+        imagenames = sorted(glob(join(path, image, cam, '*' + ext)))
         chessnames = sorted(glob(join(path, 'chessboard', cam, '*.json')))
-        k3ds_, k2ds_ = load_chessboards(chessnames, imagenames, args.num, out=join(args.path, 'output', cam+'_used'))
+        k3ds_, k2ds_ = load_chessboards(
+            chessnames, imagenames, args.num, out=join(args.path, 'output', cam + '_used')
+        )
         k3ds = k3ds_
         k2ds = [np.ascontiguousarray(k2d[:, :-1]) for k2d in k2ds_]
         gray = cv2.imread(imagenames[0], 0)
         print('>> Camera {}: {:3d} frames'.format(cam, len(k2ds)))
         with Timer('calibrate'):
             ret, K, dist, rvecs, tvecs = cv2.calibrateCamera(
-                k3ds, k2ds, gray.shape[::-1], None, None,
-                flags=cv2.CALIB_FIX_K3)
+                k3ds, k2ds, gray.shape[::-1], None, None, flags=cv2.CALIB_FIX_K3
+            )
             cameras[cam] = {
                 'K': K,
-                'dist': dist  # dist: (1, 5)
+                'dist': dist    # dist: (1, 5)
             }
     write_intri(join(path, 'output', 'intri.yml'), cameras)
 

@@ -1,7 +1,6 @@
 import pytest
-
-from pybind11_tests import virtual_functions as m
 from pybind11_tests import ConstructorStats
+from pybind11_tests import virtual_functions as m
 
 
 def test_override(capture, msg):

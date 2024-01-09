@@ -1,19 +1,19 @@
 # 这个脚本用于通用的多阶段的优化
 import numpy as np
 import torch
-
-from ..annotator.file_utils import read_json
-from ..mytools import Timer
-from .lossbase import print_table
-from ..config.baseconfig import load_object
-from ..bodymodel.base import Params
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+from ..bodymodel.base import Params
+from ..config.baseconfig import load_object
+from ..mytools import Timer
+
+
 def dict_of_numpy_to_tensor(body_model, body_params, *args, **kwargs):
     device = body_model.device
-    body_params = {key:torch.Tensor(val).to(device) for key, val in body_params.items()}
+    body_params = {key: torch.Tensor(val).to(device) for key, val in body_params.items()}
     return body_params
+
 
 class AddExtra:
     def __init__(self, vals) -> None:
@@ -29,23 +29,34 @@ class AddExtra:
                 body_params[key] = val
         return body_params
 
+
 def dict_of_tensor_to_numpy(body_params):
-    body_params = {key:val.detach().cpu().numpy() for key, val in body_params.items()}
+    body_params = {key: val.detach().cpu().numpy() for key, val in body_params.items()}
     return body_params
+
 
 def grad_require(params, flag=False):
     if isinstance(params, list):
         for par in params:
-            par.requires_grad = flag 
+            par.requires_grad = flag
     elif isinstance(params, dict):
         for key, par in params.items():
             par.requires_grad = flag
 
+
 def rel_change(prev_val, curr_val):
     return (prev_val - curr_val) / max([1e-5, abs(prev_val), abs(curr_val)])
 
-def make_optimizer(opt_params, optim_type='lbfgs', max_iter=20,
-    lr=1e-3, betas=(0.9, 0.999), weight_decay=0.0, **kwargs):
+
+def make_optimizer(
+    opt_params,
+    optim_type='lbfgs',
+    max_iter=20,
+    lr=1e-3,
+    betas=(0.9, 0.999),
+    weight_decay=0.0,
+    **kwargs
+):
     if isinstance(opt_params, dict):
         # LBFGS 不支持参数字典
         opt_params = list(opt_params.values())
@@ -57,6 +68,7 @@ def make_optimizer(opt_params, optim_type='lbfgs', max_iter=20,
     else:
         raise NotImplementedError
     return optimizer
+
 
 def make_lossfuncs(stage, infos, device, irepeat, verbose=False):
     loss_funcs, weights = {}, {}
@@ -81,6 +93,7 @@ def make_lossfuncs(stage, infos, device, irepeat, verbose=False):
             print('  - {:15s}: {}, {}'.format(key, weights[key], func))
     return loss_funcs, weights
 
+
 def make_before_after(before_after, body_model, body_params, infos):
     modules = []
     for key, val in before_after.items():
@@ -96,6 +109,7 @@ def make_before_after(before_after, body_model, body_params, infos):
         modules.append(module)
     return modules
 
+
 def process(start_or_end, body_model, body_params, infos):
     for key, val in start_or_end.items():
         if isinstance(val, dict):
@@ -108,6 +122,7 @@ def process(start_or_end, body_model, body_params, infos):
         body_params = module(body_model, body_params, infos)
     return body_params
 
+
 def plot_meshes(img, meshes, K, R, T):
     import cv2
     mesh_camera = []
@@ -115,11 +130,12 @@ def plot_meshes(img, meshes, K, R, T):
         vertices = mesh['vertices'] @ R.T + T.T
         v2d = vertices @ K.T
         v2d[:, :2] = v2d[:, :2] / v2d[:, 2:3]
-        lw=1
-        col=(0,0,255)
+        lw = 1
+        col = (0, 0, 255)
         for (x, y, d) in v2d[::10]:
-            cv2.circle(img, (int(x+0.5), int(y+0.5)), lw*2, col, -1)
+            cv2.circle(img, (int(x + 0.5), int(y + 0.5)), lw * 2, col, -1)
     return img
+
 
 class MultiStage:
     def __init__(self, batch_size, optimizer, monitor, initialize, stages) -> None:
@@ -128,8 +144,10 @@ class MultiStage:
         self.monitor = monitor
         self.initialize = initialize
         self.stages = stages
-    
-    def make_closure(self, body_model, body_params, infos, loss_funcs, weights, optimizer, before_after_module):
+
+    def make_closure(
+        self, body_model, body_params, infos, loss_funcs, weights, optimizer, before_after_module
+    ):
         def closure(debug=False, ret_kpts=False):
             # 0. Prepare body parameters => new_params
             optimizer.zero_grad()
@@ -153,21 +171,26 @@ class MultiStage:
                     loss_dict[key] = loss_func(poses_full=poses_full, **new_params, **infos)
                 else:
                     loss_dict[key] = loss_func(kpts_est=kpts_est, **new_params, **infos)
-            loss = sum([loss_dict[key]*weights[key]
-                        for key in loss_dict.keys()])
+            loss = sum([loss_dict[key] * weights[key] for key in loss_dict.keys()])
             if debug:
                 return loss_dict
             loss.backward()
             return loss
+
         return closure
-    
+
     def optimizer_step(self, optimizer, closure, weights):
         prev_loss = None
         for iter_ in range(self.monitor.maxiters):
             with torch.no_grad():
                 loss_dict = closure(debug=True)
             if self.monitor.printloss or (self.monitor.verbose and iter_ == 0):
-                print('{:-6d}: '.format(iter_) + ' '.join([key + ' %f'%(loss_dict[key].item()*weights[key]) for key in loss_dict.keys()]))
+                print(
+                    '{:-6d}: '.format(iter_) + ' '.join([
+                        key + ' %f' % (loss_dict[key].item() * weights[key])
+                        for key in loss_dict.keys()
+                    ])
+                )
             loss = optimizer.step(closure)
             # check the loss
             if torch.isnan(loss).sum() > 0:
@@ -181,7 +204,12 @@ class MultiStage:
                 loss_rel_change = rel_change(prev_loss, loss.item())
                 if loss_rel_change <= self.monitor.ftol:
                     if self.monitor.printloss or self.monitor.verbose:
-                        print('{:-6d}: '.format(iter_) + ' '.join([key + ' %f'%(loss_dict[key].item()*weights[key]) for key in loss_dict.keys()]))
+                        print(
+                            '{:-6d}: '.format(iter_) + ' '.join([
+                                key + ' %f' % (loss_dict[key].item() * weights[key])
+                                for key in loss_dict.keys()
+                            ])
+                        )
                     break
             # log
             if self.monitor.vis2d:
@@ -195,14 +223,16 @@ class MultiStage:
         # 单独拟合一个stage, 返回body_params
         optimizer_args = stage.get('optimizer', self.optimizer_args)
         dtype, device = body_model.dtype, body_model.device
-        body_params = process(stage.get('at_start', {'convert': 'numpy_to_tensor'}), body_model, body_params, infos)
+        body_params = process(
+            stage.get('at_start', {'convert': 'numpy_to_tensor'}), body_model, body_params, infos
+        )
         opt_params = {}
         if 'optimize' in stage.keys():
             optimize_names = stage.optimize
         else:
             optimize_names = stage.optimizes[irepeat]
         for key in optimize_names:
-            if key in infos.keys(): # 优化的参数
+            if key in infos.keys():    # 优化的参数
                 infos[key] = infos[key].to(device)
                 opt_params[key] = infos[key]
             elif key in body_params.keys():
@@ -212,19 +242,23 @@ class MultiStage:
         if self.monitor.verbose:
             print('[optimize] optimizing {}'.format(optimize_names))
         for key, val in opt_params.items():
-            infos['init_'+key] = val.clone().detach().cpu()
+            infos['init_' + key] = val.clone().detach().cpu()
         # initialize keypoints
         with torch.no_grad():
             kpts_est = body_model.keypoints(body_params)
             infos['init_kpts_est'] = kpts_est.clone().detach().cpu()
-        before_after_module = make_before_after(stage.get('before_after', {}), body_model, body_params, infos)
+        before_after_module = make_before_after(
+            stage.get('before_after', {}), body_model, body_params, infos
+        )
         for module in before_after_module:
             # Input to this module is tensor
             body_params = module.start(body_params)
         grad_require(opt_params, True)
         optimizer = make_optimizer(opt_params, **optimizer_args)
         loss_funcs, weights = make_lossfuncs(stage, infos, device, irepeat, self.monitor.verbose)
-        closure = self.make_closure(body_model, body_params, infos, loss_funcs, weights, optimizer, before_after_module)
+        closure = self.make_closure(
+            body_model, body_params, infos, loss_funcs, weights, optimizer, before_after_module
+        )
         if self.monitor.check:
             new_params = body_params.copy()
             for module in before_after_module:
@@ -252,7 +286,9 @@ class MultiStage:
 
     def fit_data(self, data, body_model):
         infos = data.copy()
-        init_params = body_model.init_params(nFrames=infos['nFrames'], nPerson=infos.get('nPerson', 1))
+        init_params = body_model.init_params(
+            nFrames=infos['nFrames'], nPerson=infos.get('nPerson', 1)
+        )
         # first initialize the model
         for name, init_func in self.initialize.items():
             if 'loss' in init_func.keys():
@@ -278,8 +314,14 @@ class MultiStage:
         # select the best results
         if len(results) > 1:
             # check the result
-            loss = load_object(self.check.module, self.check.args, **{key:infos[key] for key in self.check.infos})
-            metrics = [loss(body_model.keypoints(body_params, return_tensor=True).cpu()).item() for body_params in results]
+            loss = load_object(
+                self.check.module, self.check.args, **{key: infos[key]
+                                                       for key in self.check.infos}
+            )
+            metrics = [
+                loss(body_model.keypoints(body_params, return_tensor=True).cpu()).item()
+                for body_params in results
+            ]
             best_idx = np.argmin(metrics)
         else:
             best_idx = 0
@@ -288,7 +330,9 @@ class MultiStage:
 
     def fit(self, body_model, dataset):
         batch_size = len(dataset) if self.batch_size == -1 else self.batch_size
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=0, drop_last=False)
+        dataloader = DataLoader(
+            dataset, batch_size=batch_size, shuffle=False, num_workers=0, drop_last=False
+        )
         if len(dataloader) > 1:
             dataloader = tqdm(dataloader, desc='optimizing')
         for data in dataloader:
@@ -299,8 +343,11 @@ class MultiStage:
                 dataset.write_offset(offset)
             if data['nFrames'] != body_params['poses'].shape[0]:
                 for key in body_params.keys():
-                    if body_params[key].shape[0] == 1:continue
-                    body_params[key] = body_params[key].reshape(data['nFrames'], -1, *body_params[key].shape[1:])
+                    if body_params[key].shape[0] == 1:
+                        continue
+                    body_params[key] = body_params[key].reshape(
+                        data['nFrames'], -1, *body_params[key].shape[1:]
+                    )
                     print(key, body_params[key].shape)
             if 'K' in infos.keys():
                 camera = Params(K=infos['K'].numpy(), R=infos['Rc'].numpy(), T=infos['Tc'].numpy())

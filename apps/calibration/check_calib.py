@@ -5,30 +5,29 @@
   @ LastEditTime: 2022-10-11 16:47:10
   @ FilePath: /EasyMocapPublic/apps/calibration/check_calib.py
 '''
-from easymocap.mytools.debug_utils import myerror, mywarn
-from easymocap.mytools.file_utils import myarray2string
-import cv2
-import numpy as np
 import os
 from os.path import join
-from easymocap.mytools import read_json, merge
-from easymocap.mytools import read_camera, plot_points2d
-from easymocap.mytools import batch_triangulate, projectN3, Undistort
+
+import cv2
+import numpy as np
 from tqdm import tqdm
 
-POINTS_SQUARE = np.array([
-    [0., 0., 0.],
-    [1., 0., 0.],
-    [1., 1., 0.],
-    [0., 1., 0.]
-])
+from easymocap.mytools import (
+    Undistort,
+    batch_triangulate,
+    merge,
+    plot_points2d,
+    projectN3,
+    read_camera,
+    read_json,
+)
+from easymocap.mytools.debug_utils import mywarn
+from easymocap.mytools.file_utils import myarray2string
 
-LINES_SQUARE = np.array([
-    [0, 1],
-    [1, 2],
-    [2, 3],
-    [3, 0]
-])
+POINTS_SQUARE = np.array([[0., 0., 0.], [1., 0., 0.], [1., 1., 0.], [0., 1., 0.]])
+
+LINES_SQUARE = np.array([[0, 1], [1, 2], [2, 3], [3, 0]])
+
 
 def load_cube(grid_size=1, **kwargs):
     min_x, min_y, min_z = (0, 0, 0.)
@@ -43,7 +42,7 @@ def load_cube(grid_size=1, **kwargs):
     # max_x, max_y, max_z = (1.5, 1.6, 2.4)
     # min_x, min_y, min_z = (-2.45, -4., 0.)
     # max_x, max_y, max_z = (1.65, 2.45, 2.6)
-    
+
     points3d = np.array([
         [min_x, min_y, min_z],
         [max_x, min_y, min_z],
@@ -54,22 +53,12 @@ def load_cube(grid_size=1, **kwargs):
         [max_x, max_y, max_z],
         [min_x, max_y, max_z],
     ])
-    lines = np.array([
-        [0, 1],
-        [1, 2],
-        [2, 3],
-        [3, 0],
-        [4, 5],
-        [5, 6],
-        [6, 7],
-        [7, 4],
-        [0, 4],
-        [1, 5],
-        [2, 6],
-        [3, 7]
-    ], dtype=np.int64)
+    lines = np.array([[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4],
+                      [1, 5], [2, 6], [3, 7]],
+                     dtype=np.int64)
     points3d = np.hstack((points3d, np.ones((points3d.shape[0], 1))))
     return points3d, lines
+
 
 def merge_points_lines(points3d, lines):
     dist = np.linalg.norm(points3d[:, None, :] - points3d[None, :, :], axis=-1)
@@ -85,8 +74,9 @@ def merge_points_lines(points3d, lines):
     newid = sorted(list(set(mapid)))
     newpoints = points3d[newid]
     for i, newi in enumerate(newid):
-        mapid[mapid==newi] = i
+        mapid[mapid == newi] = i
     return newpoints, mapid[lines]
+
 
 def load_grid(xrange=28, yrange=15, step=1, two=False, **kwargs):
     start = np.array([0., 0., 0.])
@@ -103,12 +93,13 @@ def load_grid(xrange=28, yrange=15, step=1, two=False, **kwargs):
         start_y = 0
     for i in range(start_x, xrange):
         for j in range(start_y, yrange):
-            base = start + xdir*i*stepx + ydir*j*stepy
-            points3d.append(POINTS_SQUARE+base)
-            lines.append(LINES_SQUARE+4*((i-start_x)*(yrange-start_y)+(j-start_y)))
+            base = start + xdir * i * stepx + ydir * j * stepy
+            points3d.append(POINTS_SQUARE + base)
+            lines.append(LINES_SQUARE + 4 * ((i - start_x) * (yrange - start_y) + (j - start_y)))
     points3d = np.vstack(points3d)
     lines = np.vstack(lines)
     return merge_points_lines(points3d, lines)
+
 
 def load_human(path, pid, nf=0, camnames=[], annot='annots'):
     points = []
@@ -139,6 +130,7 @@ def load_human(path, pid, nf=0, camnames=[], annot='annots'):
     lines = CONFIG['body25']['kintree']
     return results, lines
 
+
 class BaseCheck:
     def __init__(self, path, out, mode='cube', ext='.jpg', sub=[]) -> None:
         cameras = read_camera(join(out, 'intri.yml'), join(out, 'extri.yml'))
@@ -158,16 +150,20 @@ class BaseCheck:
         for cam in self.camnames:
             camera = cameras[cam]
             center = -camera['R'].T @ camera['T']
-            # 
+            #
             lookat = camera['R'].T @ (zaxis - camera['T'])
-            print(' - {}: center = {}, look at = {}'.format(cam, np.round(center.T, 3), np.round(lookat.T, 3)))
+            print(
+                ' - {}: center = {}, look at = {}'.format(
+                    cam, np.round(center.T, 3), np.round(lookat.T, 3)
+                )
+            )
 
         self.path = path
         self.kpts2d = None
         self.ext = ext
         self.errors = []
-    
-    def check(self, points3d, lines, nf = 0, show=False, write=True):
+
+    def check(self, points3d, lines, nf=0, show=False, write=True):
         if write:
             os.makedirs(self.outdir, exist_ok=True)
         conf3d = points3d[:, -1]
@@ -186,20 +182,28 @@ class BaseCheck:
                 img = cv2.imread(imgname)
                 img = Undistort.image(img, camera['K'], camera['dist'])
             if False:
-                points2d_repro, xxx = cv2.projectPoints(p3d, cv2.Rodrigues(camera['R'])[0], camera['T'], camera['K'], camera['dist'])
+                points2d_repro, xxx = cv2.projectPoints(
+                    p3d,
+                    cv2.Rodrigues(camera['R'])[0], camera['T'], camera['K'], camera['dist']
+                )
                 kpts_repro = points2d_repro.squeeze()
             else:
                 kpts_repro = projectN3(p3d, [camera['P']])[0]
             if self.kpts2d is not None:
                 k2d = self.kpts2d[nv]
                 k2d = Undistort.points(k2d, camera['K'], camera['dist'])
-                valid = (conf3d > 0.)&(k2d[:, 2] > 0.)
+                valid = (conf3d > 0.) & (k2d[:, 2] > 0.)
                 # print(kpts_repro)
                 # import ipdb; ipdb.set_trace()
                 if k2d[:, 2].sum() > 0.:
                     diff = np.linalg.norm(k2d[:, :2] - kpts_repro[:, :2], axis=1) * valid
-                    print('[Check] {}: {} points, {:3.2f} pixels， max is {}, {:3.2f} pixels'.format(cam, valid.sum(), diff.sum()/valid.sum(), diff.argmax(), diff.max()))
-                    diff = diff.sum()/valid.sum()
+                    print(
+                        '[Check] {}: {} points, {:3.2f} pixels， max is {}, {:3.2f} pixels'.format(
+                            cam, valid.sum(),
+                            diff.sum() / valid.sum(), diff.argmax(), diff.max()
+                        )
+                    )
+                    diff = diff.sum() / valid.sum()
                     errors.append(diff)
                     self.errors.append((diff, nv, nf))
                     if show or write:
@@ -214,33 +218,48 @@ class BaseCheck:
                 kpts_vis = np.hstack((kpts_repro[:, :2], conf))
                 # for i in range(kpts_vis.shape[0]):
                 #     print('{}: {}, {}, {}'.format(i, *kpts_vis[i]))
-                plot_points2d(img, kpts_vis, lines, col=(0, 0, 255), lw=1, putText=args.text, style='+')
+                plot_points2d(
+                    img, kpts_vis, lines, col=(0, 0, 255), lw=1, putText=args.text, style='+'
+                )
                 for i in range(kpts_vis.shape[0]):
-                    if k2d[i][-1] < 0.1:continue
-                    cv2.line(img, (int(kpts_vis[i][0]), int(kpts_vis[i][1])), (int(k2d[i][0]), int(k2d[i][1])), (0,0,0), thickness=2)
+                    if k2d[i][-1] < 0.1:
+                        continue
+                    cv2.line(
+                        img, (int(kpts_vis[i][0]), int(kpts_vis[i][1])),
+                        (int(k2d[i][0]), int(k2d[i][1])), (0, 0, 0),
+                        thickness=2
+                    )
             not_skip_unvis = True
-            if show and (k2d[:, 2].sum()>0 or not_skip_unvis):
+            if show and (k2d[:, 2].sum() > 0 or not_skip_unvis):
                 vis = img
                 if vis.shape[0] > 1000:
-                    vis = cv2.resize(vis, None, fx=1000/vis.shape[0], fy=1000/vis.shape[0])
+                    vis = cv2.resize(vis, None, fx=1000 / vis.shape[0], fy=1000 / vis.shape[0])
                 cv2.imshow('vis', vis)
                 cv2.waitKey(0)
             if write:
                 outname = join(self.outdir, '{}_{:06d}.jpg'.format(cam, nf))
                 cv2.imwrite(outname, img)
         if len(errors) > 0:
-            print('[Check] Mean error: {:3.2f} pixels'.format(sum(errors)/len(errors)))
+            print('[Check] Mean error: {:3.2f} pixels'.format(sum(errors) / len(errors)))
 
     def summary(self):
         errors = self.errors
         if len(errors) > 0:
-            errors.sort(key=lambda x:-x[0])
-            print('[Check] Total {} frames Mean error: {:3.2f} pixels, max: {:3.2f} in cam "{}" frame {}'.format(len(errors), sum([e[0] for e in errors])/len(errors), errors[0][0], self.camnames[errors[0][1]], self.errors[0][2]))
+            errors.sort(key=lambda x: -x[0])
+            print(
+                '[Check] Total {} frames Mean error: {:3.2f} pixels, max: {:3.2f} in cam "{}" frame {}'
+                .format(
+                    len(errors),
+                    sum([e[0] for e in errors]) / len(errors), errors[0][0],
+                    self.camnames[errors[0][1]], self.errors[0][2]
+                )
+            )
+
 
 class QuanCheck(BaseCheck):
     def __init__(self, path, out, mode, ext, sub=[]) -> None:
         super().__init__(path, out, mode, ext, sub)
-    
+
     def triangulate(self, k2ds, gt=None):
         # k2ds: (nViews, nPoints, 3)
         self.kpts2d = k2ds
@@ -254,12 +273,13 @@ class QuanCheck(BaseCheck):
         k2dus = np.stack(k2dus)
         k3d = batch_triangulate(k2dus, Pall)
         if gt is not None:
-            if gt.shape[0] < k3d.shape[0]: # gt少了点
-                gt = np.vstack([gt, np.zeros((k3d.shape[0]-gt.shape[0], 3))])
+            if gt.shape[0] < k3d.shape[0]:    # gt少了点
+                gt = np.vstack([gt, np.zeros((k3d.shape[0] - gt.shape[0], 3))])
             valid = np.where(k3d[:, -1] > 0.)[0]
             err3d = np.linalg.norm(k3d[valid, :3] - gt[valid], axis=1)
-            print('[Check3D] mean error: {:.2f}mm'.format(err3d.mean()*1000))
+            print('[Check3D] mean error: {:.2f}mm'.format(err3d.mean() * 1000))
         return k3d
+
 
 def load2d_ground(path, nf=0, camnames=[]):
     k2ds = []
@@ -277,12 +297,13 @@ def load2d_ground(path, nf=0, camnames=[]):
         k2ds.append(k2d)
     for i, k2d in enumerate(k2ds):
         if k2d.shape[0] < MAX_POINTS:
-            k2ds[i] = np.vstack([k2d, np.zeros((MAX_POINTS-k2d.shape[0], 3))])
+            k2ds[i] = np.vstack([k2d, np.zeros((MAX_POINTS - k2d.shape[0], 3))])
     k2ds = np.stack(k2ds)
     conf = k2ds[:, :, 2].sum(axis=1)
-    if (conf>0).sum() < 2:
+    if (conf > 0).sum() < 2:
         return False, None, None
     return True, k2ds, k3d
+
 
 def read_match2d_file(file, camnames):
     points = read_json(file)['points_global']
@@ -293,6 +314,7 @@ def read_match2d_file(file, camnames):
                 continue
             match2d[camnames.index(key), npo] = [x, y, 1.]
     return True, match2d, np.zeros((match2d.shape[1], 3))
+
 
 def check_calib(path, out, vis=False, show=False, debug=False):
     if vis:
@@ -339,7 +361,7 @@ def check_calib(path, out, vis=False, show=False, debug=False):
                 plot_points2d(imgs[nv], kpts_repro_vis, [], col=(0, 0, 255), lw=1, putText=False)
                 plot_points2d(imgs[nv], k2ds[nv], [], lw=1, putText=False)
                 for i in range(kpts_repro_vis.shape[0]):
-                    cv2.line(imgs[nv], kpts_repro_vis[i], k2ds[nv][i], (0,0,0), thickness=1)
+                    cv2.line(imgs[nv], kpts_repro_vis[i], k2ds[nv][i], (0, 0, 0), thickness=1)
                 if show:
                     cv2.imshow('vis', imgs[nv])
                     cv2.waitKey(0)
@@ -347,7 +369,8 @@ def check_calib(path, out, vis=False, show=False, debug=False):
             imgout = merge(imgs, resize=False)
             outname = join(out, 'check', '{:06d}.jpg'.format(nf))
             cv2.imwrite(outname, imgout)
-    print('{:.2f}/{} = {:.2f} pixel'.format(total_sum, int(cnt), total_sum/cnt))
+    print('{:.2f}/{} = {:.2f} pixel'.format(total_sum, int(cnt), total_sum / cnt))
+
 
 def check_match(path, out):
     os.makedirs(out, exist_ok=True)
@@ -378,21 +401,18 @@ def check_match(path, out):
         plot_points2d(img, kpts_repro, lines, col=(0, 0, 255), lw=1, putText=True)
         plot_points2d(img, points2d[cams.index(cam)], lines, col=(0, 255, 0), lw=1, putText=True)
         for i in range(kpts_repro_vis.shape[0]):
-            cv2.line(imgs[nv], kpts_repro[i], points2d[cams.index(cam)][i], (0,0,0), thickness=1)
-        outname = join(out, cam+'.jpg')
+            cv2.line(imgs[nv], kpts_repro[i], points2d[cams.index(cam)][i], (0, 0, 0), thickness=1)
+        outname = join(out, cam + '.jpg')
         cv2.imwrite(outname, img)
+
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('path', type=str, 
-        help='the directory contains the extrinsic images')
-    parser.add_argument('--sub', type=str,
-        default=[], nargs='+')
-    parser.add_argument('--out', type=str,
-        help='with camera parameters')
-    parser.add_argument('--mode', type=str, default='cube',
-        help='with camera parameters')
+    parser.add_argument('path', type=str, help='the directory contains the extrinsic images')
+    parser.add_argument('--sub', type=str, default=[], nargs='+')
+    parser.add_argument('--out', type=str, help='with camera parameters')
+    parser.add_argument('--mode', type=str, default='cube', help='with camera parameters')
     parser.add_argument('--ext', type=str, default='.jpg', choices=['.jpg', '.png'])
     parser.add_argument('--prefix', type=str, default=None)
     parser.add_argument('--grid_x', type=int, default=3)
@@ -412,11 +432,14 @@ if __name__ == "__main__":
     parser.add_argument('--text', action='store_true')
     parser.add_argument('--print3d', action='store_true')
     parser.add_argument('--gt', action='store_true')
-    
+
     args = parser.parse_args()
     if args.mode in ['cube', 'grid']:
         points, lines = {'cube': load_cube, 'grid': load_grid}[args.mode](
-            xrange=args.grid_x, yrange=args.grid_y, step=args.grid_step, two=args.grid_two,
+            xrange=args.grid_x,
+            yrange=args.grid_y,
+            step=args.grid_step,
+            two=args.grid_two,
             grid_size=args.grid_step
         )
         print('Check {} points'.format(points.shape))
@@ -428,11 +451,14 @@ if __name__ == "__main__":
         if args.mode == 'match':
             for nf in range(0, 10000, args.step):
                 # try:
-                flag, k2ds, gt3d = load2d_ground(join(args.path, args.annot), nf=nf, camnames=checker.camnames)
+                flag, k2ds, gt3d = load2d_ground(
+                    join(args.path, args.annot), nf=nf, camnames=checker.camnames
+                )
                 # except:
-                    # myerror('{} not exist'.format(join(args.path, args.annot, '{:06d}.json'.format(nf))))
-                    # break
-                if not flag:continue
+                # myerror('{} not exist'.format(join(args.path, args.annot, '{:06d}.json'.format(nf))))
+                # break
+                if not flag:
+                    continue
                 points = checker.triangulate(k2ds, gt=gt3d)
                 if args.print3d:
                     valid = points[:, -1] > 0.01
@@ -441,20 +467,28 @@ if __name__ == "__main__":
                     print(myarray2string(points_, indent=0))
                     norm = np.linalg.norm(points_, axis=1)
                     print('[calib] max norm={}, min norm={}'.format(norm.max(), norm.min()))
-                checker.check(gt3d if args.gt else points, lines, nf, show=args.show, write=args.write)
+                checker.check(
+                    gt3d if args.gt else points, lines, nf, show=args.show, write=args.write
+                )
             checker.summary()
         elif args.mode == 'gcp':
-            flag, k2ds, gt3d = read_match2d_file(join(args.path, 'calib.json'), camnames=checker.camnames)
+            flag, k2ds, gt3d = read_match2d_file(
+                join(args.path, 'calib.json'), camnames=checker.camnames
+            )
             points = checker.triangulate(k2ds, gt=gt3d)
             print(myarray2string(points, indent=4))
             checker.check(gt3d if args.gt else points, lines, 0, show=args.show, write=args.write)
         else:
-            flag, k2ds, gt3d = load2d_ground(join(args.path, 'chessboard'), camnames=checker.camnames)
+            flag, k2ds, gt3d = load2d_ground(
+                join(args.path, 'chessboard'), camnames=checker.camnames
+            )
             points = checker.triangulate(k2ds, gt=gt3d)
             checker.check(gt3d if args.gt else points, lines, 0, show=args.show, write=args.write)
     elif args.mode == 'human':
         checker = QuanCheck(args.path, args.out, args.mode, args.ext, sub=args.sub)
-        points, lines = load_human(args.path, pid=args.pid, nf=args.frame, camnames=checker.camnames, annot=args.annot)
+        points, lines = load_human(
+            args.path, pid=args.pid, nf=args.frame, camnames=checker.camnames, annot=args.annot
+        )
         points = checker.triangulate(points, gt=None)
         print('[calib] check human')
         print(myarray2string(points, indent=0))

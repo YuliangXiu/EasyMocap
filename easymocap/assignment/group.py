@@ -5,19 +5,20 @@
   @ LastEditTime: 2021-06-25 11:44:26
   @ FilePath: /EasyMocapRelease/easymocap/assignment/group.py
 '''
-import numpy as np
-from ..mytools.reconstruction import projectN3
 from ..mytools.file_utils import batch_bbox_from_pose
+from ..mytools.reconstruction import projectN3
+
 
 class Person:
     width = 1024
     height = 1024
     Pall = None
+
     def __init__(self, pid) -> None:
         self.id = pid
         self.age = []
         # property:
-        self.info = {key:None for key in ['bbox', 'kptsRepro', 'keypoints3d', 'Vused']}
+        self.info = {key: None for key in ['bbox', 'kptsRepro', 'keypoints3d', 'Vused']}
 
     def add(self, keypoints3d, Vused, **kwargs):
         self.keypoints3d = keypoints3d
@@ -29,7 +30,7 @@ class Person:
     @property
     def keypoints3d(self):
         return self.info['keypoints3d']
-    
+
     @keypoints3d.setter
     def keypoints3d(self, k3d):
         kpts_repro = projectN3(k3d, self.Pall)
@@ -41,11 +42,12 @@ class Person:
     @property
     def bbox(self):
         return self.info['bbox']
-    
+
     @property
     def kptsRepro(self):
         return self.info['kptsRepro']
-        
+
+
 class PeopleGroup(dict):
     def __init__(self, Pall, cfg) -> None:
         self.maxid = 0
@@ -54,7 +56,7 @@ class PeopleGroup(dict):
         self.dimGroups = []
         self.Pall = Pall
         Person.Pall = Pall
-    
+
     def add(self, info):
         # self.current.append(info)
         pid = self.maxid
@@ -80,7 +82,7 @@ class PeopleGroup(dict):
             result = {'id': pid, 'keypoints3d': people.keypoints3d}
             results.append(result)
         return results
-    
+
     def __str__(self):
         res = '  PeopleDict {:6d}: {}\n'.format(Person.time, ' '.join(map(str, self.pids)))
         for pid in self.pids:

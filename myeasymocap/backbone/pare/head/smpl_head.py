@@ -14,16 +14,18 @@
 #
 # Contact: ps-license@tuebingen.mpg.de
 
-import torch
 import numpy as np
+import torch
 import torch.nn as nn
-
 from smplx import SMPL as _SMPL
-from smplx.utils import SMPLOutput
 from smplx.lbs import vertices2joints
+from smplx.utils import SMPLOutput
 
 from .. import config, constants
-from ..utils.geometry import perspective_projection, convert_weak_perspective_to_perspective
+from ..utils.geometry import (
+    convert_weak_perspective_to_perspective,
+    perspective_projection,
+)
 
 
 class SMPL(_SMPL):

@@ -5,9 +5,11 @@
   @ LastEditTime: 2021-09-05 20:10:02
   @ FilePath: /EasyMocap/easymocap/neuralbody/trainer/lr_sheduler.py
 '''
-import torch
-from collections import Counter
 from bisect import bisect_right
+from collections import Counter
+
+import torch
+
 
 class WarmupMultiStepLR(torch.optim.lr_scheduler._LRScheduler):
     def __init__(
@@ -22,7 +24,8 @@ class WarmupMultiStepLR(torch.optim.lr_scheduler._LRScheduler):
     ):
         if not list(milestones) == sorted(milestones):
             raise ValueError(
-                "Milestones should be a list of" " increasing integers. Got {}",
+                "Milestones should be a list of"
+                " increasing integers. Got {}",
                 milestones,
             )
 
@@ -47,15 +50,12 @@ class WarmupMultiStepLR(torch.optim.lr_scheduler._LRScheduler):
                 alpha = float(self.last_epoch) / self.warmup_iters
                 warmup_factor = self.warmup_factor * (1 - alpha) + alpha
         return [
-            base_lr
-            * warmup_factor
-            * self.gamma ** bisect_right(self.milestones, self.last_epoch)
+            base_lr * warmup_factor * self.gamma**bisect_right(self.milestones, self.last_epoch)
             for base_lr in self.base_lrs
         ]
 
 
 class MultiStepLR(torch.optim.lr_scheduler._LRScheduler):
-
     def __init__(self, optimizer, milestones, gamma=0.1, last_epoch=-1):
         self.milestones = Counter(milestones)
         self.gamma = gamma
@@ -64,33 +64,37 @@ class MultiStepLR(torch.optim.lr_scheduler._LRScheduler):
     def get_lr(self):
         if self.last_epoch not in self.milestones:
             return [group['lr'] for group in self.optimizer.param_groups]
-        return [group['lr'] * self.gamma ** self.milestones[self.last_epoch]
-                for group in self.optimizer.param_groups]
+        return [
+            group['lr'] * self.gamma**self.milestones[self.last_epoch]
+            for group in self.optimizer.param_groups
+        ]
 
 
 class ExponentialLR(torch.optim.lr_scheduler._LRScheduler):
-
     def __init__(self, optimizer, decay_epochs, gamma=0.1, last_epoch=-1):
         self.decay_epochs = decay_epochs
         self.gamma = gamma
         super(ExponentialLR, self).__init__(optimizer, last_epoch)
 
     def get_lr(self):
-        return [base_lr * self.gamma ** (self.last_epoch / self.decay_epochs)
-                for base_lr in self.base_lrs]
+        return [
+            base_lr * self.gamma**(self.last_epoch / self.decay_epochs) for base_lr in self.base_lrs
+        ]
+
 
 def Scheduler(cfg_scheduler, optimizer):
     if cfg_scheduler.type == 'multi_step':
-        scheduler = MultiStepLR(optimizer,
-                                milestones=cfg_scheduler.milestones,
-                                gamma=cfg_scheduler.gamma)
+        scheduler = MultiStepLR(
+            optimizer, milestones=cfg_scheduler.milestones, gamma=cfg_scheduler.gamma
+        )
     elif cfg_scheduler.type == 'exponential':
-        scheduler = ExponentialLR(optimizer,
-                                  decay_epochs=cfg_scheduler.decay_epochs,
-                                  gamma=cfg_scheduler.gamma)
+        scheduler = ExponentialLR(
+            optimizer, decay_epochs=cfg_scheduler.decay_epochs, gamma=cfg_scheduler.gamma
+        )
     else:
         raise NotImplementedError
     return scheduler
+
 
 def set_lr_scheduler(cfg_scheduler, scheduler):
     if cfg_scheduler.type == 'multi_step':

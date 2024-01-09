@@ -1,15 +1,18 @@
+import copy
+import json
 import os
 from os.path import join
-import json
+
 import cv2
-import copy
-from ...mytools.reader import read_smpl, read_json
-from ...mytools.camera_utils import Undistort, read_cameras
-from ...mytools.debug_utils import myerror, mywarn, oncewarn
-from ...mytools.timer import Timer
-from .utils_sample import get_bounds, get_rays, sample_rays_rate, sample_rays
 import numpy as np
-from .utils_reader import img_to_numpy, numpy_to_img, read_json_with_cache, parse_semantic
+
+from ...mytools.camera_utils import Undistort, read_cameras
+from ...mytools.debug_utils import myerror, oncewarn
+from ...mytools.reader import read_json, read_smpl
+from ...mytools.timer import Timer
+from .utils_reader import img_to_numpy, parse_semantic, read_json_with_cache
+from .utils_sample import get_bounds, get_rays, sample_rays, sample_rays_rate
+
 
 class BaseBase:
     def __init__(self, split):
@@ -22,46 +25,48 @@ class BaseBase:
 
     def __len__(self):
         return len(self.infos)
-    
+
     def __getitem__(self, index):
         raise NotImplementedError
-    
+
     def scale_and_undistort(self, img, info, undis=True):
         img = img_to_numpy(img)
         if self.image_args.scale != 1:
-            H, W = int(img.shape[0] * self.image_args['scale']), int(img.shape[1] * self.image_args['scale'])
+            H, W = int(img.shape[0] * self.image_args['scale']), int(
+                img.shape[1] * self.image_args['scale']
+            )
             img = cv2.resize(img, (W, H), interpolation=cv2.INTER_NEAREST)
         K, D = info['camera']['K'], info['camera']['dist']
         sub = info['sub']
         if self.image_args.undis and np.linalg.norm(D) > 0. and undis:
             img = Undistort.image(img, K, D, sub=sub)
-        
+
         return img
 
     def parse_object_args(self, object_keys, object_args, ignore_keys):
         for _class in ['human', 'ball']:
-            if 'all'+_class in object_args.keys():
+            if 'all' + _class in object_args.keys():
                 object_args = object_args.copy()
-                _allargs = object_args.pop('all'+_class)
+                _allargs = object_args.pop('all' + _class)
                 pids = _allargs.pop('pids')
                 for pid in pids:
                     _args = copy.deepcopy(_allargs)
                     _args['args'].pid = pid
-                    object_args[_class+'_{}'.format(pid)] = _args
+                    object_args[_class + '_{}'.format(pid)] = _args
         self.ignore_keys = ignore_keys
         self.object_args = object_args
         self.object_keys = object_keys
 
     def object_factory(self, root, obj_type, obj_args, info, params, file_cache):
         # 通用的一些参数：例如SMPL
-        pid = obj_args.get('pid', -1) # pid only available in human or ball
+        pid = obj_args.get('pid', -1)    # pid only available in human or ball
         sub = info['sub']
         if 'frame' in params:
             frame = params['frame']
         else:
             frame = info['frame']
         feat = {}
-        reader = obj_args.get('reader', {}) # reader only available in human
+        reader = obj_args.get('reader', {})    # reader only available in human
         use_param_foreachview = obj_args.get('use_param_foreachview', False)
         for key, args in reader.items():
             if key == 'smpl':
@@ -98,7 +103,7 @@ class BaseBase:
                     k3d = np.array(data['keypoints3d'], dtype=np.float32)
                     conf = k3d[:, 3]
                     k3d = k3d[:, :3]
-                    data['vertices'] = k3d[conf>0.1]
+                    data['vertices'] = k3d[conf > 0.1]
                 for key in ['vertices']:
                     feat[key] = np.array(data[key], dtype=np.float32)
                 feat['bounds'] = get_bounds(feat['vertices'], delta=args.padding)
@@ -108,10 +113,11 @@ class BaseBase:
                     depth = None
                 else:
                     depth = cv2.imread(depthname, cv2.IMREAD_ANYDEPTH)
-                    depth = depth.astype(np.float32)/1000
+                    depth = depth.astype(np.float32) / 1000
                 feat['depth'] = depth
             elif key in ['mask', 'instance', 'label', 'semantic']:
-                if args.root == 'none': continue
+                if args.root == 'none':
+                    continue
                 mskname = join(root, args.root, sub, '{:06d}_{}.png'.format(frame, pid))
                 if not os.path.exists(mskname):
                     mskname0 = join(root, args.root, sub, '{:06d}.png'.format(frame))
@@ -130,7 +136,7 @@ class BaseBase:
                     msk = cv2.imread(mskname, 0)
                 msk = self.scale_and_undistort(msk, info, undis=args.undis)
                 if key == 'mask':
-                    feat[key] = msk>0
+                    feat[key] = msk > 0
                 elif key == 'label':
                     feat[key] = msk
                 elif key == 'semantic':
@@ -138,57 +144,73 @@ class BaseBase:
                     feat['mask'] = feat[key] > 0
                 else:
                     raise NotImplementedError
-        if obj_type in ['nearfar', 'nearfardepth']: 
+        if obj_type in ['nearfar', 'nearfardepth']:
             from .utils_sample import NearFarSampler
-            obj = NearFarSampler(split=self.split, near=obj_args.near, far=obj_args.far, depth=feat.get('depth', None))
+            obj = NearFarSampler(
+                split=self.split,
+                near=obj_args.near,
+                far=obj_args.far,
+                depth=feat.get('depth', None)
+            )
         elif obj_type == 'bbox':
             from .utils_sample import AABBSampler
             obj = AABBSampler(split=self.split, bounds=obj_args.bounds)
         elif obj_type == 'twobbox':
             from .utils_sample import TwoAABBSampler
-            obj = TwoAABBSampler(split=self.split, bbox_inter=obj_args.bbox_inter, bbox_outer=obj_args.bbox_outer)
+            obj = TwoAABBSampler(
+                split=self.split, bbox_inter=obj_args.bbox_inter, bbox_outer=obj_args.bbox_outer
+            )
         elif obj_type == 'compose':
             objlist = []
             for key, obj_args_ in obj_args.items():
-                obj_ = self.object_factory(root, obj_args_.model, obj_args_, info, params, file_cache)
+                obj_ = self.object_factory(
+                    root, obj_args_.model, obj_args_, info, params, file_cache
+                )
                 objlist.append(obj_)
             from .utils_sample import ComposeSampler
             obj = ComposeSampler(split=self.split, objlist=objlist)
         elif obj_type == 'bodybbox':
-            from .utils_sample import AABBwMask, AABBSampler
+            from .utils_sample import AABBSampler, AABBwMask
             if 'vertices' in feat.keys():
                 vertices = feat['vertices']
                 if 'label' in feat.keys() and feat['label'] is not None:
                     obj = AABBwMask.from_vertices(
                         label=feat['label'].astype(np.float32),
-                        mask=feat['label'], # use label to represents mask
+                        mask=feat['label'],    # use label to represents mask
                         rate_body=obj_args.rate_body,
                         dilate=True,
-                        split=self.split, vertices=vertices, delta=obj_args.reader.vertices.padding)
+                        split=self.split,
+                        vertices=vertices,
+                        delta=obj_args.reader.vertices.padding
+                    )
                 else:
                     obj = AABBSampler.from_vertices(
-                        split=self.split, vertices=vertices, delta=obj_args.reader.vertices.padding)
+                        split=self.split, vertices=vertices, delta=obj_args.reader.vertices.padding
+                    )
             else:
                 center = feat['Th']
                 obj = AABBSampler(self.split, center=center, scale=obj_args.scale)
         elif obj_type == 'maskbbox':
             from .utils_sample import AABBwMask
             center = feat['Th']
-            obj = AABBwMask(split=self.split, center=center, scale=obj_args.scale, mask=feat['mask'])
+            obj = AABBwMask(
+                split=self.split, center=center, scale=obj_args.scale, mask=feat['mask']
+            )
         elif obj_type == 'neuralbody' or obj_type == 'neuralbody-smplmask':
             from .utils_sample import AABBwMask
+
             # ATTN
             dilate = obj_type == 'neuralbody'
 
             if 'rotate_axis' in params.keys():
-                axis = {
-                    'y': np.array([0., 1., 0.], dtype=np.float32)
-                }[params['rotate_axis']]
-                Rrel = cv2.Rodrigues(params['rotate_angle']*axis)[0]
+                axis = {'y': np.array([0., 1., 0.], dtype=np.float32)}[params['rotate_axis']]
+                Rrel = cv2.Rodrigues(params['rotate_angle'] * axis)[0]
                 feat['vertices'] = (feat['vertices'] - feat['Th']) @ Rrel.T + feat['Th']
                 feat['R'] = Rrel @ feat['R']
                 feat['Rh'] = cv2.Rodrigues(feat['R'])[0].reshape(1, 3)
-                feat['bounds'] = get_bounds(feat['vertices'], delta=obj_args.reader.vertices.padding)
+                feat['bounds'] = get_bounds(
+                    feat['vertices'], delta=obj_args.reader.vertices.padding
+                )
             if 'rotation' in params.keys() or 'translation' in params.keys():
                 # support rotation and translation
                 rotation = params.get('rotation', [0., 0., 0.])
@@ -200,17 +222,26 @@ class BaseBase:
                 feat['Rh'] = cv2.Rodrigues(feat['R'])[0].reshape(1, 3)
                 feat['Th'] = (Rrel @ feat['Th'].T + Trel.T).T
                 feat['vertices'] = feat['vertices'] @ Rrel.T + Trel
-                feat['bounds'] = get_bounds(feat['vertices'], delta=obj_args.reader.vertices.padding)
+                feat['bounds'] = get_bounds(
+                    feat['vertices'], delta=obj_args.reader.vertices.padding
+                )
             # calculate canonical vertices and bounds
             feat['vertices_canonical'] = (feat['vertices'] - feat['Th']) @ feat['R'].T.T
-            feat['bounds_canonical'] = get_bounds(feat['vertices_canonical'], delta=obj_args.reader.vertices.padding)
-            obj = AABBwMask(split=self.split, bounds=feat['bounds'], 
-                mask=feat.get('mask', None), 
+            feat['bounds_canonical'] = get_bounds(
+                feat['vertices_canonical'], delta=obj_args.reader.vertices.padding
+            )
+            obj = AABBwMask(
+                split=self.split,
+                bounds=feat['bounds'],
+                mask=feat.get('mask', None),
                 label=feat.get('label', None),
                 dilate=dilate,
-                rate_body=obj_args.rate_body)
-            for key in ['R', 'Rh', 'Th', 'vertices', 'poses', 'shapes',
-                'vertices_canonical', 'bounds_canonical']:
+                rate_body=obj_args.rate_body
+            )
+            for key in [
+                'R', 'Rh', 'Th', 'vertices', 'poses', 'shapes', 'vertices_canonical',
+                'bounds_canonical'
+            ]:
                 obj.feature[key] = feat[key]
             # extra keys
             for key in ['semantic']:
@@ -252,7 +283,8 @@ class BaseBase:
             current_keys = list(object_args.keys())
         for oid, wrapkey in enumerate(current_keys):
             key, params = wrapkey, {}
-            if key in self.ignore_keys: continue
+            if key in self.ignore_keys:
+                continue
             if '@' in wrapkey:
                 key_ = wrapkey.split('_@')[0]
                 params = json.loads(wrapkey.split('_@')[1].replace("'", '"'))
@@ -260,7 +292,9 @@ class BaseBase:
             else:
                 val = object_args[key]
             with Timer(wrapkey, not self.timer):
-                model = self.object_factory(root, val['model'], val['args'], info, params, file_cache)
+                model = self.object_factory(
+                    root, val['model'], val['args'], info, params, file_cache
+                )
             objects[key] = model
         return objects
 
@@ -276,7 +310,7 @@ class BaseBase:
         # sample rays according to the rate
         bounds, rates = {}, {}
         for key, obj in objects.items():
-            with Timer('mask '+key, not self.timer):
+            with Timer('mask ' + key, not self.timer):
                 ret = obj.mask(K, R, T, H, W, ray_o=ray_o, ray_d=ray_d)
             if isinstance(ret, np.ndarray):
                 bounds[key] = ret
@@ -284,13 +318,13 @@ class BaseBase:
                     rates[key] = self.object_args[key]['rate']
             elif isinstance(ret, dict):
                 for key_, val_ in ret.items():
-                    bounds[key+key_] = val_['mask']
+                    bounds[key + key_] = val_['mask']
                     if self.split == 'train':
-                        rates[key+key_] = self.object_args[key]['rate'] * val_['rate']
+                        rates[key + key_] = self.object_args[key]['rate'] * val_['rate']
             else:
                 raise NotImplementedError
         if self.split == 'train':
-        # if self.sample_args['method'] == 'rate' and self.split == 'train':
+            # if self.sample_args['method'] == 'rate' and self.split == 'train':
             with Timer('sample ray', not self.timer):
                 coord = sample_rays_rate(bounds, rates, back_mask, **self.sample_args)
         else:
@@ -308,59 +342,64 @@ class BaseBase:
             bound_sum = np.sum(bounds, axis=-1)
             plt.imshow(bound_sum)
             plt.show()
-            import ipdb;ipdb.set_trace()
+            import ipdb
+            ipdb.set_trace()
         ray_o = ray_o[coord[:, 0], coord[:, 1]]
         ray_d = ray_d[coord[:, 0], coord[:, 1]]
         rgb = img[coord[:, 0], coord[:, 1]]
         return ray_o, ray_d, rgb, coord
-    
+
     def sample_near_far(self, rgb, ray_o, ray_d, coord, objects):
         ret = {
-            'rgb': rgb, 'coord': coord,
-            'ray_o': ray_o, 'ray_d': ray_d, 'viewdirs': ray_d/np.linalg.norm(ray_d, axis=-1, keepdims=True),
+            'rgb': rgb,
+            'coord': coord,
+            'ray_o': ray_o,
+            'ray_d': ray_d,
+            'viewdirs': ray_d / np.linalg.norm(ray_d, axis=-1, keepdims=True),
         }
         # TODO:这里是每个物体分别进行采样，没有统一调度
         # sample the ray in the fore
         for key, model in objects.items():
-            with Timer('sample '+key, not self.timer):
+            with Timer('sample ' + key, not self.timer):
                 near, far, mask = model(ray_o, ray_d, coord)
             # 这里把单个物体的相关信息直接返回了，用于兼容单人的情况，单人就不用考虑如何取mask了
             for k in ['rgb', 'coord', 'ray_o', 'ray_d', 'viewdirs']:
-                ret[key+'_'+k] = ret[k][mask]
+                ret[key + '_' + k] = ret[k][mask]
             ret.update({
-                key+'_near': near, 
-                key+'_far': far, 
-                key+'_mask': mask,
-                key+'_bounds': model.bounds})
+                key + '_near': near, key + '_far': far, key + '_mask': mask, key + '_bounds':
+                model.bounds
+            })
             # update other features
             for k, v in model.feature.items():
                 if 'coord' in k:
-                    ret[key+'_'+k] = v[coord[:, 0], coord[:, 1]]
+                    ret[key + '_' + k] = v[coord[:, 0], coord[:, 1]]
                 else:
-                    ret[key+'_'+k] = v
+                    ret[key + '_' + k] = v
         return ret
-    
+
     def create_cameras(self, camera_args):
         from .utils_sample import create_center_radius
         RT = create_center_radius(
-            center=camera_args.center, 
-            radius=camera_args.radius, up=camera_args.up, 
+            center=camera_args.center,
+            radius=camera_args.radius,
+            up=camera_args.up,
             angle_x=camera_args.angle_x,
-            ranges=camera_args.ranges)
+            ranges=camera_args.ranges
+        )
         focal = camera_args.focal
-        K = np.array([
-            focal, 0, camera_args.H/2, 0, focal, camera_args.W/2, 0, 0, 1
-        ]).reshape(3, 3)
+        K = np.array([focal, 0, camera_args.H / 2, 0, focal, camera_args.W / 2, 0, 0,
+                      1]).reshape(3, 3)
         cameras = [{'K': K, 'R': RT[i, :3, :3], 'T': RT[i, :3, 3:]} for i in range(RT.shape[0])]
         return cameras
+
 
 class BaseDataset(BaseBase):
     # This class is mainly for multiview or single view training dataset
     # contains the operation for image
-    def __init__(self, root, subs, ranges, split, 
-        image_args, 
-        object_keys, object_args, ignore_keys,
-        sample_args) -> None:
+    def __init__(
+        self, root, subs, ranges, split, image_args, object_keys, object_args, ignore_keys,
+        sample_args
+    ) -> None:
         super().__init__(split=split)
         self.root = root
         self.cameras = read_cameras(root)
@@ -381,7 +420,8 @@ class BaseDataset(BaseBase):
         for i in tqdm(range(len(self)), desc='check all the data'):
             info = self.infos[i]
             sub = info['sub']
-            if sub in visited:continue
+            if sub in visited:
+                continue
             visited.add(sub)
             data = self[i]
 
@@ -399,13 +439,8 @@ class BaseDataset(BaseBase):
             for nnf, nf in enumerate(range(*ranges)):
                 imgname = join(root, image_args.root, sub, '{:06d}{}'.format(nf, image_args.ext))
                 info = {
-                    'imgname': imgname,
-                    'sub': sub,
-                    'frame': nf,
-                    'nf': nnf,
-                    'nv': nv,
-                    'index': index,
-                    'camera': camera
+                    'imgname': imgname, 'sub': sub, 'frame': nf, 'nf': nnf, 'nv': nv, 'index':
+                    index, 'camera': camera
                 }
                 if sub in unsync.keys():
                     info['time'] = nf + unsync[sub]
@@ -417,10 +452,12 @@ class BaseDataset(BaseBase):
         if len(subs) == 0:
             subs = sorted(os.listdir(join(root, image_root)))
             if subs[0].isdigit():
-                subs.sort(key=lambda x:int(x))
+                subs.sort(key=lambda x: int(x))
         return subs
 
-    def read_image(self, imgname, image_args, info, isgray=False, skip_mask=False, mask_global='_0.png'):
+    def read_image(
+        self, imgname, image_args, info, isgray=False, skip_mask=False, mask_global='_0.png'
+    ):
         if isgray:
             img = cv2.imread(imgname, 0)
         else:
@@ -428,19 +465,22 @@ class BaseDataset(BaseBase):
         img = img_to_numpy(img)
         if image_args.mask_bkgd and not skip_mask:
             # TODO: polish mask name
-            mskname = imgname.replace(image_args.root, image_args.mask).replace(image_args.ext, mask_global)
+            mskname = imgname.replace(image_args.root,
+                                      image_args.mask).replace(image_args.ext, mask_global)
             if not os.path.exists(mskname):
                 mskname = mskname.replace(mask_global, '.png')
             assert os.path.exists(mskname), mskname
             msk = cv2.imread(mskname, 0)
             msk_rand = np.random.rand(msk.shape[0], msk.shape[1], 3)
             msk_rand = (msk_rand * 255).astype(np.uint8)
-            img[msk==0] = -1.
+            img[msk == 0] = -1.
             # img[msk==0] = msk_rand[msk==0]
         # 这里选择了先进行畸变矫正，再进行scale，这样相机参数就不需要修改
         # 由于预先进行了map，所以畸变矫正不会很慢
         if self.image_args.scale != 1:
-            H, W = int(img.shape[0] * self.image_args['scale']), int(img.shape[1] * self.image_args['scale'])
+            H, W = int(img.shape[0] * self.image_args['scale']), int(
+                img.shape[1] * self.image_args['scale']
+            )
             img = cv2.resize(img, (W, H), interpolation=cv2.INTER_NEAREST)
         K, D = info['camera']['K'], info['camera']['dist']
         sub = info['sub']
@@ -472,7 +512,7 @@ class BaseDataset(BaseBase):
                 oncewarn('using mask of background')
                 _back_mask = self.read_image(mskname, image_args, info, isgray=True)
                 # 畸变矫正后边缘上填充的值是0，这里取反之后边缘上的填充值又变成了1
-                _back_mask[_back_mask>0] = 1.
+                _back_mask[_back_mask > 0] = 1.
                 back_mask = (1. - _back_mask) * back_mask
             self.back_mask_cache[sub] = back_mask
             back_mask = self.back_mask_cache[sub].copy()
@@ -484,7 +524,7 @@ class BaseDataset(BaseBase):
         if os.path.exists(mskname):
             # oncewarn('using mask of frame {}'.format(mskname))
             mask_frame = self.read_image(mskname, image_args, info, isgray=True)
-            mask_frame[mask_frame>0] = 1.
+            mask_frame[mask_frame > 0] = 1.
             mask_frame = 1. - mask_frame
             back_mask = back_mask * mask_frame
         return back_mask
@@ -495,7 +535,7 @@ class BaseDataset(BaseBase):
         with Timer('read image', not self.timer):
             img = self.read_image(imgname, self.image_args, info)
         with Timer('read background', not self.timer):
-            back = self.read_bkgd(imgname, self.image_args, info)        
+            back = self.read_bkgd(imgname, self.image_args, info)
         with Timer('read back', not self.timer):
             back_mask = self.read_backmask(imgname, self.image_args, info, blankshape=img.shape[:2])
         object_keys = info.get('object_keys', self.object_keys)
@@ -504,13 +544,15 @@ class BaseDataset(BaseBase):
         ray_o, ray_d, rgb, coord = self.sample_ray(img, back_mask, info, objects, debug=self.debug)
         ret = self.sample_near_far(rgb, ray_o, ray_d, coord, objects)
         # append the background
-        if back is not None:            
+        if back is not None:
             ret['background'] = back[coord[:, 0], coord[:, 1]]
         meta = {
             'split': self.split,
-            'H': img.shape[0], 'W': img.shape[1],
+            'H': img.shape[0],
+            'W': img.shape[1],
             'index': index,
-            'nframe': info['nf'], 'nview': info['nv'],
+            'nframe': info['nf'],
+            'nview': info['nv'],
             'time': info.get('time', info['nf']),
             'sub': info['sub'],
             'keys': list(objects.keys()),
@@ -521,12 +563,14 @@ class BaseDataset(BaseBase):
         ret['meta'] = meta
         return ret
 
+
 class BaseDatasetDemo(BaseDataset):
     def __init__(self, camera_args, demo_args=None, **kwargs):
         self.camera_args = camera_args
         super().__init__(**kwargs)
         scale = self.image_args.scale
-        self.blank = np.zeros((int(camera_args.H*scale), int(camera_args.W*scale), 3), dtype=np.uint8)
+        self.blank = np.zeros((int(camera_args.H * scale), int(camera_args.W * scale), 3),
+                              dtype=np.uint8)
         self.infos = self.create_demo_cameras(self.image_args.scale, camera_args, demo_args)
         # self.camera_args = camera_args
         # K, RTs, D = self.create_demo_camera(camera_method, camera_args, self.cameras)
@@ -540,24 +584,15 @@ class BaseDatasetDemo(BaseDataset):
             nnf = nv % (len(frames))
             nf = frames[nnf]
             info = {
-                'imgname': 'none',
-                'sub': 'novel_'+str(nv),
-                'frame': nf,
-                'nf': nnf,
-                'nv': nv,
-                'index': index,
-                'camera': {
-                    'K': K[nv],
-                    'dist': np.zeros((1, 5)),
-                    'R': R[nv],
-                    'T': T[nv]
-                }
+                'imgname': 'none', 'sub': 'novel_' + str(nv), 'frame': nf, 'nf': nnf, 'nv': nv,
+                'index': index, 'camera':
+                {'K': K[nv], 'dist': np.zeros((1, 5)), 'R': R[nv], 'T': T[nv]}
             }
 
             infos.append(info)
             index += 1
         return infos
-    
+
     @staticmethod
     def _demo_keyframe(ranges, K, R, T, frame, nFrames):
         infos = []
@@ -565,23 +600,16 @@ class BaseDatasetDemo(BaseDataset):
         frames = [i for i in range(*ranges)]
         for nnf, nf in enumerate(frames):
             info = {
-                'imgname': 'none',
-                'sub': 'novel_'+str(0),
-                'frame': nf,
-                'nf': nnf,
-                'nv': 0,
-                'index': index,
-                'camera': {
-                    'K': K[0],
-                    'dist': np.zeros((1, 5)),
-                    'R': R[0],
-                    'T': T[0]
-                }
+                'imgname': 'none', 'sub': 'novel_' + str(0), 'frame': nf, 'nf': nnf, 'nv': 0,
+                'index': index, 'camera':
+                {'K': K[0], 'dist': np.zeros((1, 5)), 'R': R[0], 'T': T[0]}
             }
             if nf == frame:
                 for i in range(nFrames):
-                    angle = i/nFrames * 2 * np.pi
-                    object_keys = ["human_0_@{{'rotate_angle': {}, 'rotate_axis': 'y'}}".format(angle)]
+                    angle = i / nFrames * 2 * np.pi
+                    object_keys = [
+                        "human_0_@{{'rotate_angle': {}, 'rotate_axis': 'y'}}".format(angle)
+                    ]
                     _info = info.copy()
                     _info['object_keys'] = object_keys
                     infos.append(_info)
@@ -614,21 +642,12 @@ class BaseDatasetDemo(BaseDataset):
                 nv, nf = _views[_i], _frames[_i]
                 nv = nv % (K.shape[0])
                 info = {
-                    'imgname': 'none',
-                    'sub': 'novel_'+str(nv),
-                    'frame': nf,
-                    'nf': frames.index(nf),
-                    'nv': nv,
-                    'index': _i + index,
-                    'camera': {
-                        'K': K[nv],
-                        'dist': np.zeros((1, 5)),
-                        'R': R[nv],
-                        'T': T[nv]
-                    }
+                    'imgname': 'none', 'sub': 'novel_' + str(nv), 'frame': nf, 'nf':
+                    frames.index(nf), 'nv': nv, 'index': _i + index, 'camera':
+                    {'K': K[nv], 'dist': np.zeros((1, 5)), 'R': R[nv], 'T': T[nv]}
                 }
                 # create object
-                float_i = _i*1./(len(_index) - 1)
+                float_i = _i * 1. / (len(_index) - 1)
                 object_keys = stage.object_keys.copy()
                 if len(object_keys) == 0:
                     object_keys = list(self.object_args.keys()).copy()
@@ -640,11 +659,16 @@ class BaseDatasetDemo(BaseDataset):
                                 occ = (1 - float_i)**3
                             elif stage.effect == 'appear':
                                 occ = float_i**3
-                            object_keys.append(_obj+"_@{{'scale_occ': {}, 'min_acc': 0.5}}".format(occ))
+                            object_keys.append(
+                                _obj + "_@{{'scale_occ': {}, 'min_acc': 0.5}}".format(occ)
+                            )
                     if stage.effect in ['zoom']:
-                        scale = float_i * stage.effect_args.scale[1] + (1-float_i) * stage.effect_args.scale[0]
-                        cx = float_i * stage.effect_args.cx[1] + (1-float_i) * stage.effect_args.cx[0]
-                        cy = float_i * stage.effect_args.cy[1] + (1-float_i) * stage.effect_args.cy[0]
+                        scale = float_i * stage.effect_args.scale[
+                            1] + (1 - float_i) * stage.effect_args.scale[0]
+                        cx = float_i * stage.effect_args.cx[1] + (1 -
+                                                                  float_i) * stage.effect_args.cx[0]
+                        cy = float_i * stage.effect_args.cy[1] + (1 -
+                                                                  float_i) * stage.effect_args.cy[0]
                         _K = info['camera']['K'].copy()
                         _K[:2, :2] *= scale
                         _K[0, 2] *= cx
@@ -665,11 +689,12 @@ class BaseDatasetDemo(BaseDataset):
             from .utils_sample import create_center_radius
             RTs = create_center_radius(**camera_args)
             K = np.array([
-                camera_args.focal, 0, camera_args.W/2,
-                0, camera_args.focal, camera_args.H/2,
-                0, 0, 1], dtype=np.float32).reshape(3, 3)[None].repeat(RTs.shape[0], 0)
+                camera_args.focal, 0, camera_args.W / 2, 0, camera_args.focal, camera_args.H / 2, 0,
+                0, 1
+            ],
+                         dtype=np.float32).reshape(3, 3)[None].repeat(RTs.shape[0], 0)
             R = RTs[:, :3, :3]
-            T= RTs[:, :3, 3:]
+            T = RTs[:, :3, 3:]
         elif camera_args.method == 'mean':
             from .utils_sample import create_cameras_mean
             K, R, T = create_cameras_mean(list(self.cameras.values()), camera_args)
@@ -685,7 +710,7 @@ class BaseDatasetDemo(BaseDataset):
             for key, camera in self.cameras.items():
                 R = camera['R']
                 T = camera['T']
-                center_old = - R.T @ T
+                center_old = -R.T @ T
                 print(key, center_old.T[0])
             camera = self.cameras[str(camera_args.ref_sub)]
             K = camera['K'][None]
@@ -693,14 +718,14 @@ class BaseDatasetDemo(BaseDataset):
             T = camera['T'][None]
             t = np.linspace(0., 1., camera_args.allstep).reshape(-1, 1)
             t = t - 0.33
-            t[t<0.] = 0.
-            t = t/t.max()
+            t[t < 0.] = 0.
+            t = t / t.max()
             start = np.array(camera_args.center_start).reshape(1, 3)
             end = np.array(camera_args.center_end).reshape(1, 3)
-            center = end * t + start * (1-t)
+            center = end * t + start * (1 - t)
             K = K.repeat(camera_args.allstep, 0)
             R = R.repeat(camera_args.allstep, 0)
-            T = - np.einsum('fab,fb->fa', R, center)
+            T = -np.einsum('fab,fb->fa', R, center)
             T = T.reshape(-1, 3, 1)
 
         K[:, :2] *= scale
@@ -723,6 +748,7 @@ class BaseDatasetDemo(BaseDataset):
     def read_image(self, imgname, image_args, info):
         return self.blank
 
+
 class BaseNovelPose(BaseBase):
     def __init__(self, root, object_keys, ignore_keys, object_args, sample_args, camera_args):
         super().__init__(split='demo')
@@ -738,6 +764,7 @@ class BaseNovelPose(BaseBase):
 
     def load_all_smpl(self, root):
         from glob import glob
+
         from tqdm import tqdm
         smplnames = sorted(glob(join(root, 'smpl', '*.json')))
         params = []
@@ -755,7 +782,7 @@ class BaseNovelPose(BaseBase):
                 'index': nf,
             })
         return params
-    
+
     def combine_frame_and_camera(self, params, cameras):
         infos = []
         for i in range(len(params)):
@@ -770,7 +797,7 @@ class BaseNovelPose(BaseBase):
 
     def __len__(self):
         return len(self.infos)
-    
+
     def __getitem__(self, index):
         info = self.infos[index]
         objects = self.get_objects(self.root, info, self.object_keys, self.object_args)
@@ -784,9 +811,11 @@ class BaseNovelPose(BaseBase):
         ret = self.sample_near_far(rgb, ray_o, ray_d, coord, objects)
         info['nf'] = 0
         meta = {
-            'H': img.shape[0], 'W': img.shape[1],
+            'H': img.shape[0],
+            'W': img.shape[1],
             'index': index,
-            'nframe': info['nf'], 'nview': info['nv'],
+            'nframe': info['nf'],
+            'nview': info['nv'],
             'sub': info['sub'],
             'keys': list(objects.keys()),
         }
@@ -795,6 +824,7 @@ class BaseNovelPose(BaseBase):
         meta['object_keys'] = meta['keys']
         ret['meta'] = meta
         return ret
+
 
 class BaseCanonical(BaseNovelPose):
     def __init__(self, nFrames, **kwargs):
@@ -806,7 +836,7 @@ class BaseCanonical(BaseNovelPose):
         for key in ['poses', 'Rh', 'Th']:
             smpl[key] = np.zeros_like(smpl[key])
         return smpl
-    
+
     def combine_frame_and_camera(self, params, cameras):
         infos = []
         for i in range(len(cameras)):
@@ -822,15 +852,18 @@ class BaseCanonical(BaseNovelPose):
             })
             infos.append(info)
         return infos
-    
+
     def get_objects(self, root, info, object_keys, object_args):
         objects = {'human_0': AABBSampler(split='test', bounds=[[-1, -1.3, -0.3], [1, 0.7, 0.3]])}
         objects['human_0'].feature['shapes'] = self.params['shapes']
         return objects
 
+
 if __name__ == '__main__':
-    from ...config import Config, load_object
     from copy import deepcopy
+
+    from ...config import Config, load_object
+
     # config = Config.load('config/neuralbody/dataset/multiview_custom.yml')
     # config = Config.load('config/neuralbody/dataset/neuralbody_lightstage.yml')
     config = Config.load('config/neuralbody/dataset/neuralbody_soccer.yml')

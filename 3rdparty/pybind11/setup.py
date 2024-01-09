@@ -2,11 +2,12 @@
 
 # Setup script for PyPI; use CMakeFile.txt to build extension modules
 
-from setuptools import setup
-from distutils.command.install_headers import install_headers
-from distutils.command.build_py import build_py
-from pybind11 import __version__
 import os
+from distutils.command.build_py import build_py
+from distutils.command.install_headers import install_headers
+
+from pybind11 import __version__
+from setuptools import setup
 
 package_data = [
     'include/pybind11/detail/class.h',
@@ -82,18 +83,12 @@ setup(
     zip_safe=False,
     cmdclass=dict(install_headers=InstallHeaders, build_py=BuildPy),
     classifiers=[
-        'Development Status :: 5 - Production/Stable',
-        'Intended Audience :: Developers',
-        'Topic :: Software Development :: Libraries :: Python Modules',
-        'Topic :: Utilities',
-        'Programming Language :: C++',
-        'Programming Language :: Python :: 2.7',
-        'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.2',
-        'Programming Language :: Python :: 3.3',
-        'Programming Language :: Python :: 3.4',
-        'Programming Language :: Python :: 3.5',
-        'Programming Language :: Python :: 3.6',
+        'Development Status :: 5 - Production/Stable', 'Intended Audience :: Developers',
+        'Topic :: Software Development :: Libraries :: Python Modules', 'Topic :: Utilities',
+        'Programming Language :: C++', 'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3', 'Programming Language :: Python :: 3.2',
+        'Programming Language :: Python :: 3.3', 'Programming Language :: Python :: 3.4',
+        'Programming Language :: Python :: 3.5', 'Programming Language :: Python :: 3.6',
         'License :: OSI Approved :: BSD License'
     ],
     keywords='C++11, Python bindings',
@@ -119,4 +114,5 @@ Python (2.7 or 3.x, or PyPy2.7 >= 5.7) and the C++ standard library. This
 compact implementation was possible thanks to some of the new C++11 language
 features (specifically: tuples, lambda functions and variadic templates). Since
 its creation, this library has grown beyond Boost.Python in many ways, leading
-to dramatically simpler binding code in many common situations.""")
+to dramatically simpler binding code in many common situations."""
+)

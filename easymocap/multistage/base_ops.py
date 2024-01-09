@@ -8,6 +8,7 @@
 '''
 import torch
 
+
 class BeforeAfterBase:
     def __init__(self, model) -> None:
         pass
@@ -15,14 +16,15 @@ class BeforeAfterBase:
     def start(self, body_params):
         # operation before the optimization
         return body_params
-    
+
     def before(self, body_params):
         # operation in each optimization step
         return body_params
-    
+
     def final(self, body_params):
         # operation after the optimization
         return body_params
+
 
 class SkipPoses(BeforeAfterBase):
     def __init__(self, index, nPoses) -> None:

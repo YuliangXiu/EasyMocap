@@ -1,8 +1,6 @@
 import pytest
-
+from pybind11_tests import ConstructorStats, UserType
 from pybind11_tests import stl as m
-from pybind11_tests import UserType
-from pybind11_tests import ConstructorStats
 
 
 def test_vector(doc):
@@ -86,8 +84,8 @@ def test_recursive_casting():
     assert m.cast_lv_map() == {"a": "lvalue", "b": "lvalue"}
     assert m.cast_rv_nested() == [[[{"b": "rvalue", "c": "rvalue"}], [{"a": "rvalue"}]]]
     assert m.cast_lv_nested() == {
-        "a": [[["lvalue", "lvalue"]], [["lvalue", "lvalue"]]],
-        "b": [[["lvalue", "lvalue"], ["lvalue", "lvalue"]]]
+        "a": [[["lvalue", "lvalue"]], [["lvalue", "lvalue"]]], "b": [[["lvalue", "lvalue"],
+                                                                      ["lvalue", "lvalue"]]]
     }
 
     # Issue #853 test case:
@@ -173,7 +171,7 @@ def test_vec_of_reference_wrapper():
 def test_stl_pass_by_pointer(msg):
     """Passing nullptr or None to an STL container pointer is not expected to work"""
     with pytest.raises(TypeError) as excinfo:
-        m.stl_pass_by_pointer()  # default value is `nullptr`
+        m.stl_pass_by_pointer()    # default value is `nullptr`
     assert msg(excinfo.value) == """
         stl_pass_by_pointer(): incompatible function arguments. The following argument types are supported:
             1. (v: List[int] = None) -> List[int]
@@ -198,10 +196,12 @@ def test_missing_header_message():
     <pybind11/stl.h> should result in a helpful suggestion in the error message"""
     import pybind11_cross_module_tests as cm
 
-    expected_message = ("Did you forget to `#include <pybind11/stl.h>`? Or <pybind11/complex.h>,\n"
-                        "<pybind11/functional.h>, <pybind11/chrono.h>, etc. Some automatic\n"
-                        "conversions are optional and require extra headers to be included\n"
-                        "when compiling your pybind11 module.")
+    expected_message = (
+        "Did you forget to `#include <pybind11/stl.h>`? Or <pybind11/complex.h>,\n"
+        "<pybind11/functional.h>, <pybind11/chrono.h>, etc. Some automatic\n"
+        "conversions are optional and require extra headers to be included\n"
+        "when compiling your pybind11 module."
+    )
 
     with pytest.raises(TypeError) as excinfo:
         cm.missing_header_arg([1.0, 2.0, 3.0])
@@ -215,7 +215,10 @@ def test_missing_header_message():
 def test_function_with_string_and_vector_string_arg():
     """Check if a string is NOT implicitly converted to a list, which was the
     behavior before fix of issue #1258"""
-    assert m.func_with_string_or_vector_string_arg_overload(('A', 'B', )) == 2
+    assert m.func_with_string_or_vector_string_arg_overload((
+        'A',
+        'B',
+    )) == 2
     assert m.func_with_string_or_vector_string_arg_overload(['A', 'B']) == 2
     assert m.func_with_string_or_vector_string_arg_overload('A') == 3
 

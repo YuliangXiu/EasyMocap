@@ -1,7 +1,10 @@
-from ...config.baseconfig import load_object
+from copy import deepcopy
+
 import torch
 import torch.nn as nn
-from copy import deepcopy
+
+from ...config.baseconfig import load_object
+
 
 class ComposedModel(nn.Module):
     def __init__(self, models) -> None:
@@ -9,12 +12,12 @@ class ComposedModel(nn.Module):
         models = deepcopy(models)
         for key in ['human', 'ball']:
             if 'all' + key in models.keys():
-                pids = models['all'+key].pop('pids')
+                pids = models['all' + key].pop('pids')
                 for pid in pids:
-                    models['{}_{}'.format(key, pid)] = deepcopy(models['all'+key])
+                    models['{}_{}'.format(key, pid)] = deepcopy(models['all' + key])
                     if 'pid' in models['{}_{}'.format(key, pid)].network_args.keys():
                         models['{}_{}'.format(key, pid)].network_args.pid = pid
-                models.pop('all'+key)
+                models.pop('all' + key)
         if 'allkeys' in models.keys():
             object_keys = models['allkeys'].pop('keys')
             for key in object_keys:
@@ -23,12 +26,17 @@ class ComposedModel(nn.Module):
         modules = {}
         for key, val in models.items():
             model = load_object(val['network_module'], val['network_args'])
-            print('[model] {:15s}: {:4.1f}M'.format(key, sum([m.numel() for m in model.parameters()])/1000000))
+            print(
+                '[model] {:15s}: {:4.1f}M'.format(
+                    key,
+                    sum([m.numel() for m in model.parameters()]) / 1000000
+                )
+            )
             modules[key] = model
         self.models = nn.ModuleDict(modules)
         self.keys = list(self.models.keys())
         self.is_share = False
-    
+
     def model(self, name):
         model = self.models[name]
         model.current = name
@@ -37,24 +45,32 @@ class ComposedModel(nn.Module):
     def forward(self, pts):
         raise NotImplementedError
 
+
 from .base import Base
+
+
 class MultiLayer(Base):
     def __init__(self, sample_args, models):
         super().__init__(sample_args)
         modules = {}
         for key, val in models.items():
             model = load_object(val['network_module'], val['network_args'])
-            print('[model] {:15s}: {:4.1f}M'.format(key, sum([m.numel() for m in model.parameters()])/1000000))
+            print(
+                '[model] {:15s}: {:4.1f}M'.format(
+                    key,
+                    sum([m.numel() for m in model.parameters()]) / 1000000
+                )
+            )
             modules[key] = model
         self.models = nn.ModuleDict(modules)
         self.keys = list(self.models.keys())
         self.num_layers = len(self.keys)
         self.name = None
-        
+
     def model(self, name):
         self.current = name
         return self
-    
+
     def clear_cache(self):
         pass
 
@@ -62,7 +78,7 @@ class MultiLayer(Base):
         for name, model in self.models.items():
             data = model.before(batch, key)
         return data
-    
+
     def calculate_density_color(self, pts, viewdirs):
         map_semantic = {
             'human_0': 0,
@@ -77,7 +93,11 @@ class MultiLayer(Base):
             # # if name in ['human_0']:
             # if name in []:
             #     raw_output_layer['occupancy'] = torch.zeros_like(raw_output_layer['occupancy'])
-            semantic = torch.zeros(*raw_output_layer['occupancy'].shape[:-1], self.num_layers, device=raw_output_layer['occupancy'].device)
+            semantic = torch.zeros(
+                *raw_output_layer['occupancy'].shape[:-1],
+                self.num_layers,
+                device=raw_output_layer['occupancy'].device
+            )
             semantic[..., map_semantic[name]] = 1.
             raw_output_layer['semantic'] = semantic
             outputs.append(raw_output_layer)
@@ -85,7 +105,7 @@ class MultiLayer(Base):
         for key in outputs[0].keys():
             ret[key] = torch.cat([output[key] for output in outputs], dim=1)
         return ret
-    
+
     def calculate_density_color_from_ray(self, *kargs, **kwargs):
         z_vals, pts, raw_output = super().calculate_density_color_from_ray(*kargs, **kwargs)
         # TODO: add perturbation

@@ -14,19 +14,20 @@
 #
 # Contact: ps-license@tuebingen.mpg.de
 
-import torch
 import numpy as np
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from ..backbone.resnet import BasicBlock, conv1x1, conv3x3
 from ..config import SMPL_MEAN_PARAMS
+from ..layers import KeypointAttention, LocallyConnected2d, interpolate
 from ..layers.coattention import CoAttention
-from ..utils.geometry import rot6d_to_rotmat, get_coord_maps
-from ..utils.kp_utils import get_smpl_neighbor_triplets
-from ..layers.softargmax import softargmax2d, get_heatmap_preds
-from ..layers import LocallyConnected2d, KeypointAttention, interpolate
 from ..layers.non_local import dot_product
-from ..backbone.resnet import conv3x3, conv1x1, BasicBlock
+from ..layers.softargmax import get_heatmap_preds, softargmax2d
+from ..utils.geometry import get_coord_maps, rot6d_to_rotmat
+from ..utils.kp_utils import get_smpl_neighbor_triplets
+
 
 class logger:
     @staticmethod

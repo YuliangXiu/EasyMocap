@@ -1,11 +1,13 @@
+import math
 import os
+import pickle
 from os.path import join
-import numpy as np
+
 import cv2
+import numpy as np
 import torch
 import torch.nn as nn
-import pickle
-import math
+
 
 def rotate_2d(pt_2d, rot_rad):
     x = pt_2d[0]
@@ -16,13 +18,15 @@ def rotate_2d(pt_2d, rot_rad):
     return np.array([xx, yy], dtype=np.float32)
 
 
-def gen_trans_from_patch_cv(c_x, c_y, src_width, src_height, dst_width, dst_height, scale, rot, inv=False):
+def gen_trans_from_patch_cv(
+    c_x, c_y, src_width, src_height, dst_width, dst_height, scale, rot, inv=False
+):
     # augment size with scale
     src_w = src_width * scale
     src_h = src_height * scale
     src_center = np.zeros(2)
     src_center[0] = c_x
-    src_center[1] = c_y # np.array([c_x, c_y], dtype=np.float32)
+    src_center[1] = c_y    # np.array([c_x, c_y], dtype=np.float32)
     # augment rotation
     rot_rad = np.pi * rot / 180
     src_downdir = rotate_2d(np.array([0, src_h * 0.5], dtype=np.float32), rot_rad)
@@ -49,6 +53,7 @@ def gen_trans_from_patch_cv(c_x, c_y, src_width, src_height, dst_width, dst_heig
 
     return trans, inv_trans
 
+
 # TODO: add UDP
 def get_warp_matrix(theta, size_input, size_dst, size_target):
     """Calculate the transformation matrix under the constraint of unbiased.
@@ -70,27 +75,46 @@ def get_warp_matrix(theta, size_input, size_dst, size_target):
     scale_y = size_dst[1] / size_target[1]
     matrix[0, 0] = math.cos(theta) * scale_x
     matrix[0, 1] = -math.sin(theta) * scale_x
-    matrix[0, 2] = scale_x * (-0.5 * size_input[0] * math.cos(theta) +
-                              0.5 * size_input[1] * math.sin(theta) +
-                              0.5 * size_target[0])
+    matrix[0, 2] = scale_x * (
+        -0.5 * size_input[0] * math.cos(theta) + 0.5 * size_input[1] * math.sin(theta) +
+        0.5 * size_target[0]
+    )
     matrix[1, 0] = math.sin(theta) * scale_y
     matrix[1, 1] = math.cos(theta) * scale_y
-    matrix[1, 2] = scale_y * (-0.5 * size_input[0] * math.sin(theta) -
-                              0.5 * size_input[1] * math.cos(theta) +
-                              0.5 * size_target[1])
+    matrix[1, 2] = scale_y * (
+        -0.5 * size_input[0] * math.sin(theta) - 0.5 * size_input[1] * math.cos(theta) +
+        0.5 * size_target[1]
+    )
     return matrix
 
-def generate_patch_image_cv(cvimg, c_x, c_y, bb_width, bb_height, patch_width, patch_height, do_flip, scale, rot):
 
-    trans, inv_trans = gen_trans_from_patch_cv(c_x, c_y, bb_width, bb_height, patch_width, patch_height, scale, rot, inv=False)
+def generate_patch_image_cv(
+    cvimg, c_x, c_y, bb_width, bb_height, patch_width, patch_height, do_flip, scale, rot
+):
 
-    img_patch = cv2.warpAffine(cvimg, trans, (int(patch_width), int(patch_height)),
-                               flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+    trans, inv_trans = gen_trans_from_patch_cv(
+        c_x, c_y, bb_width, bb_height, patch_width, patch_height, scale, rot, inv=False
+    )
+
+    img_patch = cv2.warpAffine(
+        cvimg,
+        trans, (int(patch_width), int(patch_height)),
+        flags=cv2.INTER_LINEAR,
+        borderMode=cv2.BORDER_CONSTANT
+    )
 
     return img_patch, trans, inv_trans
 
-def get_single_image_crop_demo(image, bbox, scale=1.2, crop_size=224,
-                               mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225], fliplr=False):
+
+def get_single_image_crop_demo(
+    image,
+    bbox,
+    scale=1.2,
+    crop_size=224,
+    mean=[0.485, 0.456, 0.406],
+    std=[0.229, 0.224, 0.225],
+    fliplr=False
+):
 
     crop_image, trans, inv_trans = generate_patch_image_cv(
         cvimg=image.copy(),
@@ -108,26 +132,29 @@ def get_single_image_crop_demo(image, bbox, scale=1.2, crop_size=224,
         crop_image = cv2.flip(crop_image, 1)
     # cv2.imwrite('debug_crop.jpg', crop_image[:,:,::-1])
     # cv2.imwrite('debug_crop_full.jpg', image[:,:,::-1])
-    crop_image = crop_image.transpose(2,0,1)
-    mean1=np.array(mean, dtype=np.float32).reshape(3,1,1)
-    std1= np.array(std, dtype=np.float32).reshape(3,1,1)
-    crop_image = (crop_image.astype(np.float32))/255.
+    crop_image = crop_image.transpose(2, 0, 1)
+    mean1 = np.array(mean, dtype=np.float32).reshape(3, 1, 1)
+    std1 = np.array(std, dtype=np.float32).reshape(3, 1, 1)
+    crop_image = (crop_image.astype(np.float32)) / 255.
     # _max = np.max(abs(crop_image))
     # crop_image = np.divide(crop_image, _max)
-    crop_image = (crop_image - mean1)/std1
+    crop_image = (crop_image - mean1) / std1
 
     return crop_image, inv_trans
+
 
 def xyxy2ccwh(bbox):
     w = bbox[:, 2] - bbox[:, 0]
     h = bbox[:, 3] - bbox[:, 1]
-    cx = (bbox[:, 2] + bbox[:, 0])/2
-    cy = (bbox[:, 3] + bbox[:, 1])/2
+    cx = (bbox[:, 2] + bbox[:, 0]) / 2
+    cy = (bbox[:, 3] + bbox[:, 1]) / 2
     return np.stack([cx, cy, w, h], axis=1)
 
+
 class BaseTopDownModel(nn.Module):
-    def __init__(self, bbox_scale, res_input,
-                mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
+    def __init__(
+        self, bbox_scale, res_input, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+    ):
         super().__init__()
         self.bbox_scale = bbox_scale
         if not isinstance(res_input, list):
@@ -166,9 +193,9 @@ class BaseTopDownModel(nn.Module):
         inv_trans_ = []
         for i in range(bbox.shape[0]):
             if flips is None:
-                fliplr=False
+                fliplr = False
             else:
-                fliplr=flips[i]
+                fliplr = flips[i]
             norm_img, inv_trans = get_single_image_crop_demo(
                 img,
                 bbox[i],
@@ -211,11 +238,12 @@ class BaseTopDownModel(nn.Module):
         out = np.matmul(points, trans.swapaxes(-1, -2))
         return out
 
+
 class BaseTopDownModelCache(BaseTopDownModel):
     def __init__(self, name, **kwargs):
         super().__init__(**kwargs)
         self.name = name
-    
+
     def cachename(self, imgname):
         basename = os.sep.join(imgname.split(os.sep)[-2:])
         cachename = join(self.output, self.name, basename.replace('.jpg', '.pkl'))
@@ -226,7 +254,7 @@ class BaseTopDownModelCache(BaseTopDownModel):
         with open(cachename, 'wb') as f:
             pickle.dump(output, f)
         return output
-    
+
     def load(self, cachename):
         with open(cachename, 'rb') as f:
             output = pickle.load(f)
@@ -240,10 +268,9 @@ class BaseTopDownModelCache(BaseTopDownModel):
             output = self.infer(images, bbox, to_numpy=True, flips=flips)
             output = self.dump(cachename, output)
 
-        ret = {
-            'params': output
-        }
+        ret = {'params': output}
         return ret
+
 
 # post processing
 def get_max_preds(batch_heatmaps):
@@ -276,6 +303,7 @@ def get_max_preds(batch_heatmaps):
     preds *= pred_mask
     return preds, maxvals
 
+
 def get_preds_from_heatmaps(batch_heatmaps):
     coords, maxvals = get_max_preds(batch_heatmaps)
 
@@ -289,17 +317,15 @@ def get_preds_from_heatmaps(batch_heatmaps):
                 hm = batch_heatmaps[n][p]
                 px = int(math.floor(coords[n][p][0] + 0.5))
                 py = int(math.floor(coords[n][p][1] + 0.5))
-                if 1 < px < heatmap_width-1 and 1 < py < heatmap_height-1:
-                    diff = np.array(
-                        [
-                            hm[py][px+1] - hm[py][px-1],
-                            hm[py+1][px]-hm[py-1][px]
-                        ]
-                    )
+                if 1 < px < heatmap_width - 1 and 1 < py < heatmap_height - 1:
+                    diff = np.array([
+                        hm[py][px + 1] - hm[py][px - 1], hm[py + 1][px] - hm[py - 1][px]
+                    ])
                     coords[n][p] += np.sign(diff) * .25
     coords = coords.astype(np.float32) * 4
     pred = np.dstack((coords, maxvals))
     return pred
+
 
 def gdown_models(ckpt, url):
     print('Try to download model from {} to {}'.format(url, ckpt))

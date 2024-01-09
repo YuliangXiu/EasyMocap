@@ -5,12 +5,15 @@
   @ LastEditTime: 2022-04-21 23:53:40
   @ FilePath: /EasyMocapPublic/easymocap/estimator/YOLOv4/yolo.py
 '''
-from .darknet2pytorch import Darknet
-import cv2
-import torch
-from os.path import join
 import os
+from os.path import join
+
+import cv2
 import numpy as np
+import torch
+
+from .darknet2pytorch import Darknet
+
 
 def load_class_names(namesfile):
     class_names = []
@@ -20,6 +23,7 @@ def load_class_names(namesfile):
         line = line.rstrip()
         class_names.append(line)
     return class_names
+
 
 def nms_cpu(boxes, confs, nms_thresh=0.5, min_mode=False):
     # print(boxes.shape)
@@ -56,6 +60,7 @@ def nms_cpu(boxes, confs, nms_thresh=0.5, min_mode=False):
         order = order[inds + 1]
     return np.array(keep)
 
+
 def post_processing(conf_thresh, nms_thresh, output):
     # [batch, num, 1, 4]
     box_array = output[0]
@@ -91,7 +96,7 @@ def post_processing(conf_thresh, nms_thresh, output):
         ll_max_id = l_max_id[cls_argwhere]
 
         keep = nms_cpu(ll_box_array, ll_max_conf, nms_thresh)
-        
+
         if (keep.size > 0):
             ll_box_array = ll_box_array[keep, :]
             ll_max_conf = ll_max_conf[keep]
@@ -102,9 +107,9 @@ def post_processing(conf_thresh, nms_thresh, output):
 
     return bboxes_batch
 
+
 class YOLOv4:
-    def __init__(self, device, ckpt_path, box_nms_thres, conf_thres,
-        isWild=False) -> None:
+    def __init__(self, device, ckpt_path, box_nms_thres, conf_thres, isWild=False) -> None:
         dirname = os.path.dirname(__file__)
         cfgfile = join(dirname, 'yolov4.cfg')
         namesfile = join(dirname, 'coco.names')
@@ -119,26 +124,26 @@ class YOLOv4:
         self.isWild = isWild
 
     def predict_single(self, image):
-        width  = image.shape[1]
+        width = image.shape[1]
         height = image.shape[0]
         tgt_width = self.model.width
         # 先缩小，再padding
         if width > height:
-            tgt_shape = (tgt_width, int(height/width*tgt_width))
+            tgt_shape = (tgt_width, int(height / width * tgt_width))
             resize = cv2.resize(image, tgt_shape)
             sized = np.zeros((tgt_width, tgt_width, 3), dtype=np.uint8)
-            start = (sized.shape[0] - resize.shape[0])//2
-            sized[start:start+resize.shape[0], :, :] = resize
+            start = (sized.shape[0] - resize.shape[0]) // 2
+            sized[start:start + resize.shape[0], :, :] = resize
             # pad_to_square
         elif width == height:
             sized = cv2.resize(image, (tgt_width, tgt_width))
             start = 0
         else:
-            tgt_shape = (int(width/height*tgt_width), tgt_width)
+            tgt_shape = (int(width / height * tgt_width), tgt_width)
             resize = cv2.resize(image, tgt_shape)
             sized = np.zeros((tgt_width, tgt_width, 3), dtype=np.uint8)
             start = (sized.shape[1] - resize.shape[1]) // 2
-            sized[:, start:start+resize.shape[1], :] = resize
+            sized[:, start:start + resize.shape[1], :] = resize
         img = torch.from_numpy(sized.transpose(2, 0, 1)).float().div(255.0).unsqueeze(0)
         img = img.to(self.device)
         with torch.no_grad():
@@ -147,15 +152,16 @@ class YOLOv4:
         if len(bboxes) == 0:
             return bboxes
         if self.isWild:
-            flag = ((bboxes[:, 2] - bboxes[:, 0]) < 0.8)&(((bboxes[:, 2] - bboxes[:, 0]) > 0.1)|((bboxes[:, 3] - bboxes[:, 1]) > 0.1))
+            flag = ((bboxes[:, 2] - bboxes[:, 0]) < 0.8) & (((bboxes[:, 2] - bboxes[:, 0]) > 0.1) |
+                                                            ((bboxes[:, 3] - bboxes[:, 1]) > 0.1))
             bboxes = bboxes[flag]
         if width >= height:
             bboxes[:, :4] *= width
-            bboxes[:, 1] -= start*width/tgt_width
-            bboxes[:, 3] -= start*width/tgt_width
+            bboxes[:, 1] -= start * width / tgt_width
+            bboxes[:, 3] -= start * width / tgt_width
         else:
             bboxes[:, :4] *= height
-            bboxes[:, 0] -= start*height/tgt_width
-            bboxes[:, 2] -= start*height/tgt_width
+            bboxes[:, 0] -= start * height / tgt_width
+            bboxes[:, 2] -= start * height / tgt_width
         # return bounding box
         return bboxes

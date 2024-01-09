@@ -8,6 +8,7 @@
 from .baseconfig import CN
 from .baseconfig import Config as BaseConfig
 
+
 class Config(BaseConfig):
     @staticmethod
     def init(cfg):
@@ -50,9 +51,9 @@ class Config(BaseConfig):
         associate.criterions = CN()
 
         cfg.associate = associate
-        cfg.group  = CN()
+        cfg.group = CN()
         return cfg
-    
+
     @staticmethod
     def parse(cfg):
         for globalkey in ['height', 'width']:

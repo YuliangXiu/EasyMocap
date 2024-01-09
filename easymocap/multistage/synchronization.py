@@ -9,25 +9,29 @@
 import numpy as np
 import torch
 
+
 class AddTime:
     def __init__(self, gt) -> None:
         self.gt = gt
 
     def __call__(self, body_model, body_params, infos):
         nViews = infos['keypoints2d'].shape[1]
-        offset = np.zeros((nViews,), dtype=np.float32)
+        offset = np.zeros((nViews, ), dtype=np.float32)
         body_params['sync_offset'] = offset
         return body_params
+
 
 class Interpolate:
     def __init__(self, actfn) -> None:
         # self.act_fn = lambda x: 2*torch.nn.functional.softsign(x)
-        self.act_fn = lambda x: 2*torch.tanh(x)
+        self.act_fn = lambda x: 2 * torch.tanh(x)
         self.use0asref = False
 
     def get_offset(self, time_offset):
         if self.use0asref:
-            off = self.act_fn(torch.cat([torch.zeros(1, device=time_offset.device), time_offset[1:]]))
+            off = self.act_fn(
+                torch.cat([torch.zeros(1, device=time_offset.device), time_offset[1:]])
+            )
         else:
             off = self.act_fn(time_offset)
         return off
@@ -64,12 +68,13 @@ class Interpolate:
                     valnew = val[:, None].repeat(1, nViews, 1, 1)
                 else:
                     print('[warn] Unknown {} shape {}'.format(key, valnew.shape))
-                    import ipdb; ipdb.set_trace()
+                    import ipdb
+                    ipdb.set_trace()
             valnew = valnew.reshape(-1, *val.shape[1:])
             body_params[key] = valnew
         return body_params
-    
-    def after(self,):
+
+    def after(self, ):
         pass
 
     def final(self, body_params):

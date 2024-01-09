@@ -4,14 +4,15 @@ Extends output capture as needed by pybind11: ignore constructors, optional unor
 Adds docstring and exceptions message sanitizers: ignore Python 2 vs 3 differences.
 """
 
-import pytest
-import textwrap
+import contextlib
 import difflib
+import gc
+import platform
 import re
 import sys
-import contextlib
-import platform
-import gc
+import textwrap
+
+import pytest
 
 _unicode_marker = re.compile(r'u(\'[^\']*\')')
 _long_marker = re.compile(r'([0-9])L')
@@ -210,13 +211,16 @@ def pytest_configure():
     pytest.suppress = suppress
     pytest.requires_numpy = skipif(not np, reason="numpy is not installed")
     pytest.requires_scipy = skipif(not np, reason="scipy is not installed")
-    pytest.requires_eigen_and_numpy = skipif(not have_eigen or not np,
-                                             reason="eigen and/or numpy are not installed")
+    pytest.requires_eigen_and_numpy = skipif(
+        not have_eigen or not np, reason="eigen and/or numpy are not installed"
+    )
     pytest.requires_eigen_and_scipy = skipif(
-        not have_eigen or not scipy, reason="eigen and/or scipy are not installed")
+        not have_eigen or not scipy, reason="eigen and/or scipy are not installed"
+    )
     pytest.unsupported_on_pypy = skipif(pypy, reason="unsupported on PyPy")
-    pytest.unsupported_on_py2 = skipif(sys.version_info.major < 3,
-                                       reason="unsupported on Python 2.x")
+    pytest.unsupported_on_py2 = skipif(
+        sys.version_info.major < 3, reason="unsupported on Python 2.x"
+    )
     pytest.gc_collect = gc_collect
 
 

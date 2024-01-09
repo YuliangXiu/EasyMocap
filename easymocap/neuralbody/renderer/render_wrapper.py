@@ -5,9 +5,10 @@
   @ LastEditTime: 2021-09-05 21:25:08
   @ FilePath: /EasyMocap/easymocap/neuralbody/renderer/render_wrapper.py
 '''
-import torch
 import torch.nn as nn
+
 from ...config import load_object
+
 
 class RenderWrapper(nn.Module):
     def __init__(self, net, renderer_module, renderer_args, loss, loss_reg={}):
@@ -15,10 +16,10 @@ class RenderWrapper(nn.Module):
         renderer_args = dict(renderer_args)
         renderer_args['net'] = net
         self.renderer = load_object(renderer_module, renderer_args)
-        self.weights = {key:val['weight'] for key, val in loss.items()}
-        self.weights.update({key:val['weight'] for key, val in loss_reg.items()})
-        loss = {key:load_object(val.module, val.args) for key, val in loss.items()}
-        loss_reg = {key:load_object(val.module, val.args) for key, val in loss_reg.items()}
+        self.weights = {key: val['weight'] for key, val in loss.items()}
+        self.weights.update({key: val['weight'] for key, val in loss_reg.items()})
+        loss = {key: load_object(val.module, val.args) for key, val in loss.items()}
+        loss_reg = {key: load_object(val.module, val.args) for key, val in loss_reg.items()}
         self.loss = nn.ModuleDict(loss)
         self.loss_reg = nn.ModuleDict(loss_reg)
 
@@ -41,7 +42,7 @@ class RenderWrapper(nn.Module):
         for key in ['rgb']:
             if key not in ret.keys():
                 continue
-            scalar_stats['mean_'+key] = batch[key].mean()        
+            scalar_stats['mean_' + key] = batch[key].mean()
         scalar_stats.update({'loss': loss})
         image_stats = {}
 

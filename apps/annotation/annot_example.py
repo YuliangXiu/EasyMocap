@@ -1,7 +1,6 @@
 # This script shows an example of our annotator
-from easymocap.annotator import ImageFolder
-from easymocap.annotator import vis_point, vis_line
-from easymocap.annotator import AnnotBase
+from easymocap.annotator import AnnotBase, ImageFolder, vis_line, vis_point
+
 
 def annot_example(path):
     # define datasets
@@ -9,12 +8,10 @@ def annot_example(path):
     # define visualize
     vis_funcs = [vis_point, vis_line]
     # construct annotations
-    annotator = AnnotBase(
-        dataset=dataset, 
-        key_funcs={},
-        vis_funcs=vis_funcs)
+    annotator = AnnotBase(dataset=dataset, key_funcs={}, vis_funcs=vis_funcs)
     while annotator.isOpen:
         annotator.run()
+
 
 if __name__ == "__main__":
     import argparse

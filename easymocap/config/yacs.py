@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 ##############################################################################
-
 """YACS -- Yet Another Configuration System is designed to be a simple
 configuration management system for academic and industrial research
 projects.
@@ -26,7 +25,6 @@ import os
 from ast import literal_eval
 
 import yaml
-
 
 # Flag for py2 and py3 compatibility to use when separate code paths are necessary
 # When _PY2 is False, we assume Python 3 is in use
@@ -42,13 +40,13 @@ try:
     _FILE_TYPES = (file, io.IOBase)
     _PY2 = True
 except NameError:
-    _FILE_TYPES = (io.IOBase,)
+    _FILE_TYPES = (io.IOBase, )
 
 # CfgNodes can only contain a limited set of valid types
 _VALID_TYPES = {tuple, list, str, int, float, bool}
 # py2 allow for str and unicode
 if _PY2:
-    _VALID_TYPES = _VALID_TYPES.union({unicode})  # noqa: F821
+    _VALID_TYPES = _VALID_TYPES.union({unicode})    # noqa: F821
 
 # Utilities for importing modules from file paths
 if _PY2:
@@ -119,12 +117,12 @@ class CfgNode(dict):
         # make the value a tuple that specifies first the renamed key and then
         # instructions for how to edit the config file.
         self.__dict__[CfgNode.RENAMED_KEYS] = {
-            # 'EXAMPLE.OLD.KEY': 'EXAMPLE.NEW.KEY',  # Dummy example to follow
-            # 'EXAMPLE.OLD.KEY': (                   # A more complex example to follow
-            #     'EXAMPLE.NEW.KEY',
-            #     "Also convert to a tuple, e.g., 'foo' -> ('foo',) or "
-            #     + "'foo:bar' -> ('foo', 'bar')"
-            # ),
+        # 'EXAMPLE.OLD.KEY': 'EXAMPLE.NEW.KEY',  # Dummy example to follow
+        # 'EXAMPLE.OLD.KEY': (                   # A more complex example to follow
+        #     'EXAMPLE.NEW.KEY',
+        #     "Also convert to a tuple, e.g., 'foo' -> ('foo',) or "
+        #     + "'foo:bar' -> ('foo', 'bar')"
+        # ),
         }
 
     def __getattr__(self, name):
@@ -136,9 +134,7 @@ class CfgNode(dict):
     def __setattr__(self, name, value):
         if self.is_frozen():
             raise AttributeError(
-                "Attempted to set {} to {}, but CfgNode is immutable".format(
-                    name, value
-                )
+                "Attempted to set {} to {}, but CfgNode is immutable".format(name, value)
             )
 
         _assert_with_logging(
@@ -147,9 +143,7 @@ class CfgNode(dict):
         )
         _assert_with_logging(
             _valid_type(value, allow_cfg_node=True),
-            "Invalid type {} for key {}; valid types = {}".format(
-                type(value), name, _VALID_TYPES
-            ),
+            "Invalid type {} for key {}; valid types = {}".format(type(value), name, _VALID_TYPES),
         )
 
         self[name] = value
@@ -210,21 +204,19 @@ class CfgNode(dict):
         """
         _assert_with_logging(
             len(cfg_list) % 2 == 0,
-            "Override list has odd length: {}; it must be a list of pairs".format(
-                cfg_list
-            ),
+            "Override list has odd length: {}; it must be a list of pairs".format(cfg_list),
         )
         root = self
         cfg_list_new = []
         alias = self.pop('_alias_', {})
-        for i in range(len(cfg_list)//2):
-            if cfg_list[2*i] in alias.keys():
-                for name in alias[cfg_list[2*i]]:
+        for i in range(len(cfg_list) // 2):
+            if cfg_list[2 * i] in alias.keys():
+                for name in alias[cfg_list[2 * i]]:
                     cfg_list_new.append(name)
-                    cfg_list_new.append(cfg_list[2*i+1])
+                    cfg_list_new.append(cfg_list[2 * i + 1])
             else:
-                cfg_list_new.append(cfg_list[2*i])
-                cfg_list_new.append(cfg_list[2*i+1])
+                cfg_list_new.append(cfg_list[2 * i])
+                cfg_list_new.append(cfg_list[2 * i + 1])
         cfg_list = cfg_list_new
         for full_key, v in zip(cfg_list[0::2], cfg_list[1::2]):
             if root.key_is_deprecated(full_key):
@@ -234,9 +226,7 @@ class CfgNode(dict):
             key_list = full_key.split(".")
             d = self
             for subkey in key_list[:-1]:
-                _assert_with_logging(
-                    subkey in d, "Non-existent key: {}".format(full_key)
-                )
+                _assert_with_logging(subkey in d, "Non-existent key: {}".format(full_key))
                 d = d[subkey]
             subkey = key_list[-1]
             value = _decode_cfg_value(v)
@@ -320,9 +310,7 @@ class CfgNode(dict):
         else:
             msg = ""
         raise KeyError(
-            "Key {} was renamed to {}; please update your config.{}".format(
-                full_key, new_key, msg
-            )
+            "Key {} was renamed to {}; please update your config.{}".format(full_key, new_key, msg)
         )
 
 
@@ -334,7 +322,7 @@ def load_cfg(cfg_file_obj_or_str):
         - A string that can be parsed as valid YAML
     """
     _assert_with_logging(
-        isinstance(cfg_file_obj_or_str, _FILE_TYPES + (str,)),
+        isinstance(cfg_file_obj_or_str, _FILE_TYPES + (str, )),
         "Expected first argument to be of type {} or {}, but it was {}".format(
             _FILE_TYPES, str, type(cfg_file_obj_or_str)
         ),
@@ -389,7 +377,6 @@ def _load_cfg_py_source(filename):
 
 def _to_dict(cfg_node):
     """Recursively convert all CfgNode objects to dict objects."""
-
     def convert_to_dict(cfg_node, key_list):
         if not isinstance(cfg_node, CfgNode):
             _assert_with_logging(
@@ -515,7 +502,7 @@ def _check_and_coerce_cfg_value_type(replacement, original, key, full_key):
     casts = [(tuple, list), (list, tuple), (int, float), (float, int)]
     # For py2: allow converting from str (bytes) to a unicode string
     try:
-        casts.append((str, unicode))  # noqa: F821
+        casts.append((str, unicode))    # noqa: F821
     except Exception:
         pass
 
@@ -526,9 +513,7 @@ def _check_and_coerce_cfg_value_type(replacement, original, key, full_key):
 
     raise ValueError(
         "Type mismatch ({} vs. {}) with values ({} vs. {}) for config "
-        "key: {}".format(
-            original_type, replacement_type, original, replacement, full_key
-        )
+        "key: {}".format(original_type, replacement_type, original, replacement, full_key)
     )
 
 

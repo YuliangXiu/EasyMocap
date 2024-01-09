@@ -1,8 +1,11 @@
 import os
 from os.path import join
-import numpy as np
+
 import cv2
-from easymocap.mytools.debug_utils import log, myerror, mywarn
+import numpy as np
+
+from easymocap.mytools.debug_utils import log
+
 
 class ImageDataBase:
     def __init__(self, root, subs, ranges, read_image) -> None:

@@ -5,6 +5,17 @@
   @ LastEditTime: 2022-07-14 21:37:34
   @ FilePath: /EasyMocapPublic/apps/annotation/annot_clip.py
 '''
+import os
+from os.path import join
+
+import cv2
+import numpy as np
+
+from easymocap.annotator import ImageFolder, plot_text
+from easymocap.annotator.basic_annotator import AnnotBase, parse_parser
+from easymocap.annotator.basic_keyboard import get_any_move
+from easymocap.annotator.basic_visualize import capture_screen, resize_to_screen
+from easymocap.mytools import read_json, save_json
 # 功能：
 # 1. 快速预览图像
 # 2. 设置起点
@@ -12,16 +23,7 @@
 # 不兼容的接口：没有标注文件
 from easymocap.mytools.debug_utils import myerror, mywarn, run_cmd
 from easymocap.mytools.vis_base import plot_line
-from easymocap.annotator.basic_annotator import AnnotBase, parse_parser
-from easymocap.annotator import ImageFolder
-from easymocap.annotator import plot_text
-from easymocap.annotator.basic_visualize import capture_screen, resize_to_screen
-from easymocap.mytools import read_json, save_json
-from easymocap.annotator.basic_keyboard import get_any_move
-from os.path import join
-import os
-import numpy as np
-import cv2
+
 
 class Clips:
     def __init__(self, path) -> None:
@@ -34,11 +36,11 @@ class Clips:
         self.end_ = None
         self.clips = []
         self.sub_ = None
-    
+
     @property
     def sub(self):
         return self.sub_
-    
+
     @sub.setter
     def sub(self, value):
         self.sub_ = value
@@ -56,7 +58,7 @@ class Clips:
     def end(self, annotator, **kwargs):
         self.end_ = annotator.frame
         print('>>> End clip from frame {:6d}'.format(annotator.frame))
-    
+
     def add(self, annotator, **kwargs):
         if self.start_ is None:
             print('[clip] Please check the start!')
@@ -68,7 +70,7 @@ class Clips:
         self.clips.append([self.start_, self.end_])
         self.start_ = None
         self.end_ = None
-    
+
     def delete(self, annotator, **kwargs):
         frame = annotator.frame
         ind = -1
@@ -80,7 +82,7 @@ class Clips:
             print('[clip] current not in any clip')
             return 0
         self.clips.pop(ind)
-    
+
     def print(self, annotator, **kwargs):
         print('{}: '.format(self.sub))
         for (start, end) in self.clips:
@@ -88,26 +90,27 @@ class Clips:
 
     def save(self):
         save_json(self.temp, self.annots)
-    
+
     def vis_clips(self, img, frame, nFrames, **kwargs):
         COL_CLIP = (0, 0, 255)
         COL_NEW = (0, 0, 255)
         width = img.shape[1]
-        pos = lambda x: int(width*(x+1)/nFrames)
+        pos = lambda x: int(width * (x + 1) / nFrames)
         lw = 12
         # 可视化标注的clips
         for (start, end) in self.clips:
-            plot_line(img, (pos(start), lw/2), (pos(end), lw/2), lw, COL_CLIP)
+            plot_line(img, (pos(start), lw / 2), (pos(end), lw / 2), lw, COL_CLIP)
         # 可视化当前的标注
         if self.start_ is not None:
             top = pos(self.start_)
-            pts = np.array([[top, lw], [top-lw, lw*4], [top, lw*4]])
+            pts = np.array([[top, lw], [top - lw, lw * 4], [top, lw * 4]])
             cv2.fillPoly(img, [pts], COL_NEW)
         if self.end_ is not None:
             top = pos(self.end_)
-            pts = np.array([[top, lw], [top, lw*4], [top+lw, lw*4]])
+            pts = np.array([[top, lw], [top, lw * 4], [top + lw, lw * 4]])
             cv2.fillPoly(img, [pts], COL_NEW)
         return img
+
 
 def annot_example(path, sub, skip=False):
     # define datasets
@@ -121,32 +124,25 @@ def annot_example(path, sub, skip=False):
     if skip and len(clip.clips) > 0:
         return 0
     key_funcs = {
-        'j': clip.start,
-        'k': clip.end,
-        'l': clip.add,
-        'x': clip.delete,
-        'v': clip.print,
-        'w': get_any_move(-10),
-        's': get_any_move(10),
-        'f': get_any_move(100),
-        'g': get_any_move(-100)
+        'j': clip.start, 'k': clip.end, 'l': clip.add, 'x': clip.delete, 'v': clip.print, 'w':
+        get_any_move(-10), 's': get_any_move(10), 'f': get_any_move(100), 'g': get_any_move(-100)
     }
 
     dataset = ImageFolder(path, sub=sub, no_annot=True)
     print('[Info] Totally {} frames'.format(len(dataset)))
     # construct annotations
-    annotator = AnnotBase(
-        dataset=dataset, 
-        key_funcs=key_funcs,
-        vis_funcs=vis_funcs)
+    annotator = AnnotBase(dataset=dataset, key_funcs=key_funcs, vis_funcs=vis_funcs)
     while annotator.isOpen:
         annotator.run()
     clip.save()
 
+
 def copy_clips(path, out):
-    from tqdm import tqdm
     import shutil
-    from easymocap.mytools.debug_utils import log, mywarn, mkdir
+
+    from tqdm import tqdm
+
+    from easymocap.mytools.debug_utils import log, mkdir, mywarn
     temp = join(path, 'clips.json')
     assert os.path.exists(temp), temp
     annots = read_json(temp)
@@ -170,6 +166,7 @@ def copy_clips(path, out):
                 dstname = join(outdir, '{:06d}.jpg'.format(nnf))
                 shutil.copyfile(srcname, dstname)
 
+
 def copy_mv_clips(path, out):
     temp = join(path, 'clips.json')
     assert os.path.exists(temp), temp
@@ -187,6 +184,7 @@ def copy_mv_clips(path, out):
         if args.strip is not None:
             cmd += ' --strip {}'.format(args.strip)
         run_cmd(cmd)
+
 
 if __name__ == "__main__":
     from easymocap.annotator import load_parser, parse_parser

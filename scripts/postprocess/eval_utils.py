@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def compute_similarity_transform(S1, S2):
     """
     Computes a similarity transform (sR, t) that takes
@@ -12,7 +13,7 @@ def compute_similarity_transform(S1, S2):
         S1 = S1.T
         S2 = S2.T
         transposed = True
-    assert(S2.shape[1] == S1.shape[1])
+    assert (S2.shape[1] == S1.shape[1])
 
     # 1. Remove mean.
     mu1 = S1.mean(axis=1, keepdims=True)
@@ -40,31 +41,34 @@ def compute_similarity_transform(S1, S2):
     scale = np.trace(R.dot(K)) / var1
 
     # 6. Recover translation.
-    t = mu2 - scale*(R.dot(mu1))
+    t = mu2 - scale * (R.dot(mu1))
 
     # 7. Error:
-    S1_hat = scale*R.dot(S1) + t
+    S1_hat = scale * R.dot(S1) + t
 
     if transposed:
         S1_hat = S1_hat.T
 
     return S1_hat
 
+
 def reconstruction_error(S1, S2, reduction='mean'):
     """Do Procrustes alignment and compute reconstruction error."""
     S1_hat = compute_similarity_transform(S1, S2)
-    re = np.sqrt( ((S1_hat - S2)** 2).sum(axis=-1))
+    re = np.sqrt(((S1_hat - S2)**2).sum(axis=-1))
     if reduction == 'mean':
         re = re.mean()
     elif reduction == 'sum':
         re = re.sum()
     return re
 
+
 def align_by_pelvis(joints, names):
     l_id = names.index('LHip')
     r_id = names.index('RHip')
     pelvis = joints[[l_id, r_id], :].mean(axis=0, keepdims=True)
     return joints - pelvis
+
 
 def keypoints_error(gt, est, names, use_align=False, joint_level=True):
     assert gt.shape[-1] == 4
@@ -87,16 +91,16 @@ def keypoints_error(gt, est, names, use_align=False, joint_level=True):
         # root align
         gt, est = align_by_pelvis(gt, names), align_by_pelvis(est, names)
         # Absolute error (MPJPE)
-        dist['ra'] = np.sqrt(((est - gt) ** 2).sum(axis=-1)) * 1000
+        dist['ra'] = np.sqrt(((est - gt)**2).sum(axis=-1)) * 1000
         # Reconstuction_error
         est_hat = compute_similarity_transform(est, gt)
-        dist['pa'] = np.sqrt(((est_hat - gt) ** 2).sum(axis=-1)) * 1000
+        dist['pa'] = np.sqrt(((est_hat - gt)**2).sum(axis=-1)) * 1000
     result = {}
     for key in ['abs', 'ra', 'pa', 'pck@50', 'pck@100']:
         if key not in dist:
             continue
-        result[key+'_mean'] = dist[key].mean()
+        result[key + '_mean'] = dist[key].mean()
         if joint_level:
             for i, name in enumerate(names):
-                result[key+'_'+name] = dist[key][i]
+                result[key + '_' + name] = dist[key][i]
     return result

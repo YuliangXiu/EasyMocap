@@ -5,14 +5,17 @@
   @ LastEditTime: 2022-08-03 17:35:16
   @ FilePath: /EasyMocapPublic/apps/calibration/calib_extri.py
 '''
-from easymocap.mytools.camera_utils import write_intri
 import os
 from glob import glob
 from os.path import join
-import numpy as np
+
 import cv2
-from easymocap.mytools import read_intri, write_extri, read_json
+import numpy as np
+
+from easymocap.mytools import read_intri, read_json, write_extri
+from easymocap.mytools.camera_utils import write_intri
 from easymocap.mytools.debug_utils import mywarn
+
 
 def init_intri(path, image):
     camnames = sorted(os.listdir(join(path, image)))
@@ -23,49 +26,41 @@ def init_intri(path, image):
         imgname = imagenames[0]
         img = cv2.imread(imgname)
         height, width = img.shape[0], img.shape[1]
-        focal = 1.2*max(height, width) # as colmap
-        K = np.array([focal, 0., width/2, 0., focal, height/2, 0. ,0., 1.]).reshape(3, 3)
+        focal = 1.2 * max(height, width)    # as colmap
+        K = np.array([focal, 0., width / 2, 0., focal, height / 2, 0., 0., 1.]).reshape(3, 3)
         dist = np.zeros((1, 5))
-        cameras[cam] = {
-            'K': K,
-            'dist': dist
-        }
+        cameras[cam] = {'K': K, 'dist': dist}
     return cameras
+
 
 def solvePnP(k3d, k2d, K, dist, flag, tryextri=False):
     k2d = np.ascontiguousarray(k2d[:, :2])
     # try different initial values:
     if tryextri:
+
         def closure(rvec, tvec):
             ret, rvec, tvec = cv2.solvePnP(k3d, k2d, K, dist, rvec, tvec, True, flags=flag)
             points2d_repro, xxx = cv2.projectPoints(k3d, rvec, tvec, K, dist)
             kpts_repro = points2d_repro.squeeze()
             err = np.linalg.norm(points2d_repro.squeeze() - k2d, axis=1).mean()
             return err, rvec, tvec, kpts_repro
+
         # create a series of extrinsic parameters looking at the origin
         height_guess = 2.1
         radius_guess = 7.
         infos = []
-        for theta in np.linspace(0, 2*np.pi, 180):
+        for theta in np.linspace(0, 2 * np.pi, 180):
             st = np.sin(theta)
             ct = np.cos(theta)
-            center = np.array([radius_guess*ct, radius_guess*st, height_guess]).reshape(3, 1)
-            R = np.array([
-                [-st, ct,  0],
-                [0,    0, -1],
-                [-ct, -st, 0]
-            ])
-            tvec = - R @ center
+            center = np.array([radius_guess * ct, radius_guess * st, height_guess]).reshape(3, 1)
+            R = np.array([[-st, ct, 0], [0, 0, -1], [-ct, -st, 0]])
+            tvec = -R @ center
             rvec = cv2.Rodrigues(R)[0]
             err, rvec, tvec, kpts_repro = closure(rvec, tvec)
-            infos.append({
-                'err': err,
-                'repro': kpts_repro,
-                'rvec': rvec,
-                'tvec': tvec
-            })
-        infos.sort(key=lambda x:x['err'])
-        err, rvec, tvec, kpts_repro = infos[0]['err'], infos[0]['rvec'], infos[0]['tvec'], infos[0]['repro']
+            infos.append({'err': err, 'repro': kpts_repro, 'rvec': rvec, 'tvec': tvec})
+        infos.sort(key=lambda x: x['err'])
+        err, rvec, tvec, kpts_repro = infos[0]['err'], infos[0]['rvec'], infos[0]['tvec'], infos[0][
+            'repro']
     else:
         ret, rvec, tvec = cv2.solvePnP(k3d, k2d, K, dist, flags=flag)
         points2d_repro, xxx = cv2.projectPoints(k3d, rvec, tvec, K, dist)
@@ -73,6 +68,7 @@ def solvePnP(k3d, k2d, K, dist, flag, tryextri=False):
         err = np.linalg.norm(points2d_repro.squeeze() - k2d, axis=1).mean()
     # print(err)
     return err, rvec, tvec, kpts_repro
+
 
 def calib_extri(path, image, intriname, image_id):
     camnames = sorted(os.listdir(join(path, image)))
@@ -96,7 +92,7 @@ def calib_extri(path, image, intriname, image_id):
         # chessname = chessnames[0]
         assert len(chessnames) > 0, cam
         chessname = chessnames[image_id]
-        
+
         data = read_json(chessname)
         k3d = np.array(data['keypoints3d'], dtype=np.float32)
         k2d = np.array(data['keypoints2d'], dtype=np.float32)
@@ -129,13 +125,9 @@ def calib_extri(path, image, intriname, image_id):
                 for flag in methods:
                     err, rvec, tvec, kpts_repro = solvePnP(k3d, k2d, K, dist, flag)
                     infos.append({
-                        'focal': focal,
-                        'err': err,
-                        'repro': kpts_repro,
-                        'rvec': rvec,
-                        'tvec': tvec
+                        'focal': focal, 'err': err, 'repro': kpts_repro, 'rvec': rvec, 'tvec': tvec
                     })
-            infos.sort(key=lambda x:x['err'])
+            infos.sort(key=lambda x: x['err'])
             err, rvec, tvec = infos[0]['err'], infos[0]['rvec'], infos[0]['tvec']
             kpts_repro = infos[0]['repro']
             focal = infos[0]['focal']
@@ -148,10 +140,11 @@ def calib_extri(path, image, intriname, image_id):
         extri[cam]['Rvec'] = rvec
         extri[cam]['R'] = cv2.Rodrigues(rvec)[0]
         extri[cam]['T'] = tvec
-        center = - extri[cam]['R'].T @ tvec
+        center = -extri[cam]['R'].T @ tvec
         print('{} center => {}, err = {:.3f}'.format(cam, center.squeeze(), err))
     write_intri(join(path, 'intri.yml'), intri)
     write_extri(join(path, 'extri.yml'), extri)
+
 
 if __name__ == "__main__":
     import argparse
@@ -164,7 +157,9 @@ if __name__ == "__main__":
     parser.add_argument('--debug', action='store_true')
     parser.add_argument('--tryfocal', action='store_true')
     parser.add_argument('--tryextri', action='store_true')
-    parser.add_argument('--image_id', type=int, default=0, help='Image id used for extrinsic calibration')
+    parser.add_argument(
+        '--image_id', type=int, default=0, help='Image id used for extrinsic calibration'
+    )
 
     args = parser.parse_args()
     calib_extri(args.path, args.image, intriname=args.intri, image_id=args.image_id)
