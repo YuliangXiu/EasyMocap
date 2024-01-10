@@ -117,3 +117,5 @@ code
 lightning_logs
 models
 yolov5m.pt
+
+tmp

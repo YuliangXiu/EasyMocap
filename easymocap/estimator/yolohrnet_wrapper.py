@@ -85,7 +85,17 @@ def extract_hrnet(image_root, annot_root, ext, **config):
             annot_['keypoints'] = points2d[i]
         save_annot(annotname, annots)
 
-
+def vis(image, annots):
+    from easymocap.dataset.config import CONFIG
+    from easymocap.mytools.vis_base import plot_keypoints
+    
+    annots = annots['annots'][0]
+    config = CONFIG['body25']
+    
+    plot_keypoints(image, annots['keypoints'], 0, config)
+    
+    return image
+        
 def extract_yolo_hrnet(image_root, annot_root, ext, config_yolo, config_hrnet):
     config_yolo.pop('ext', None)
     imgnames = sorted(glob(join(image_root, '*{}'.format(ext))))
@@ -98,11 +108,9 @@ def extract_yolo_hrnet(image_root, annot_root, ext, config_yolo, config_hrnet):
     from .HRNet import SimpleHRNet
     estimator = SimpleHRNet(device=device, **config_hrnet)
 
-    for nf, imgname in enumerate(tqdm(imgnames, desc=os.path.basename(image_root))):
+    for nf, imgname in enumerate(imgnames):
         base = os.path.basename(imgname).replace(ext, '')
-        annotname = join(annot_root, base + '.json')
-        annot = create_annot_file(annotname, imgname)
-        img0 = cv2.imread(imgname)
+        annotname = join(annot_root, base + 'json')
         annot = create_annot_file(annotname, imgname)
         image = cv2.imread(imgname)
         image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -126,3 +134,6 @@ def extract_yolo_hrnet(image_root, annot_root, ext, config_yolo, config_hrnet):
             annots[i]['personID'] = i + pid
         annot['annots'] = annots
         save_annot(annotname, annot)
+        # cv2.imwrite(f"vis_{nf}.png",vis(image, annot))
+        
+    print(f"{annot_root} done!")

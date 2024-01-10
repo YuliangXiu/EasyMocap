@@ -124,8 +124,9 @@ class Detector:
         if 'handr2d' in annots.keys():
             kpts = annots['handr2d']
             plot_keypoints(image, kpts, 1, CONFIG['hand'], use_limb_color=True)
-        cv2.imshow('vis{}'.format(nv), image)
-        cv2.waitKey(5)
+        cv2.imwrite('vis{}.jpg'.format(nv), image)
+        # cv2.imshow('vis{}'.format(nv), image)
+        # cv2.waitKey(5)
 
     def process_body(self, data, results, image_width, image_height):
         if self.model_type in ['pose', 'holistic']:
@@ -214,12 +215,12 @@ class Detector:
 
 def extract_2d(image_root, annot_root, config, mode='holistic'):
     from .wrapper_base import check_result, save_annot
-    force = config.pop('force')
+    force = config['force']
     if check_result(image_root, annot_root) and not force:
         return 0
     from glob import glob
     from os.path import join
-    ext = config.pop('ext')
+    ext = config['ext']
     import os
 
     from tqdm import tqdm
@@ -227,7 +228,12 @@ def extract_2d(image_root, annot_root, config, mode='holistic'):
         to_openpose = True
     else:
         to_openpose = False
-    detector = Detector(nViews=1, to_openpose=to_openpose, model_type=mode, show=False, **config)
+        
+    new_config = config.copy()
+    new_config.pop('ext')
+    new_config.pop('force')
+    
+    detector = Detector(nViews=1, to_openpose=to_openpose, model_type=mode, show=True, **new_config)
     imgnames = sorted(glob(join(image_root, '*' + ext)))
     for imgname in tqdm(imgnames, desc='{:10s}'.format(os.path.basename(annot_root))):
         base = os.path.basename(imgname).replace(ext, '')

@@ -124,13 +124,15 @@ if __name__ == "__main__":
     parser = load_parser()
     parser.add_argument('--skel', action='store_true')
     args = parse_parser(parser)
+    
     help = """
-  Demo code for multiple views and one person:
+    Demo code for multiple views and one person:
 
-    - Input : {} => {}
-    - Output: {}
-    - Body  : {}=>{}, {}
-""".format(args.path, ', '.join(args.sub), args.out, args.model, args.gender, args.body)
+        - Input : {} => {}
+        - Output: {}
+        - Body  : {}=>{}, {}
+    """.format(args.path, ', '.join(args.sub), args.out, args.model, args.gender, args.body)
+    
     print(help)
     skel_path = join(args.out, 'keypoints3d')
     dataset = MV1PMF(

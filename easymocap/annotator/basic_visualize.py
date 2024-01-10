@@ -8,7 +8,6 @@ from ..dataset import CONFIG
 from ..mytools import get_rgb, plot_bbox, plot_cross, plot_keypoints, plot_line
 from ..mytools.file_utils import get_bbox_from_pose
 
-
 # click and (start, end) is the output of the OpenCV callback
 def vis_point(img, click, **kwargs):
     if click is not None:

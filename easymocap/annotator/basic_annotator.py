@@ -7,7 +7,8 @@ from tqdm import tqdm
 
 from .basic_callback import CV_KEY, get_key, point_callback
 from .basic_keyboard import print_help, register_keys
-from .basic_visualize import merge, resize_to_screen
+from .basic_visualize import resize_to_screen
+from ..mytools import merge
 from .bbox_callback import callback_select_image
 from .file_utils import load_annot_to_tmp, read_json, save_annot
 
