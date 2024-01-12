@@ -399,8 +399,12 @@ class _VideoBase:
 
 def load_cameras(path):
     # 读入相机参数
-    intri_name = join(path, 'intri.yml')
-    extri_name = join(path, 'extri.yml')
+    if os.path.exists(join(path, 'intri.yml')):
+        intri_name = join(path, 'intri.yml')
+        extri_name = join(path, 'extri.yml')
+    else:
+        intri_name = join(path, '../../../intri.yml')
+        extri_name = join(path, '../../../extri.yml')
     if os.path.exists(intri_name) and os.path.exists(extri_name):
         cameras = read_camera(intri_name, extri_name)
         cams = cameras.pop('basenames')
@@ -450,10 +454,16 @@ class MVBase:
         self.annotlist = {}
         for cam in cams:    #TODO: 增加start,end
             # ATTN: when image name's frame number is not continuous,
-            imgnames = sorted(os.listdir(join(self.image_root, cam)))
+            if os.path.exists(join(self.image_root, cam)):
+                imgnames = sorted(os.listdir(join(self.image_root, cam)))
+            else:
+                imgnames = [join(self.image_root, f"{cam}.jpg")]
             self.imagelist[cam] = imgnames
             if os.path.exists(self.annot_root):
-                self.annotlist[cam] = sorted(os.listdir(join(self.annot_root, cam)))
+                if os.path.exists(join(self.annot_root, cam)):
+                    self.annotlist[cam] = sorted(os.listdir(join(self.annot_root, cam)))
+                else:
+                    self.annotlist[cam] = [join(self.annot_root, f"{cam}.json")]
                 self.has2d = True
             else:
                 self.has2d = False
@@ -468,8 +478,13 @@ class MVBase:
 
     def read_camera(self, path):
         # 读入相机参数
-        intri_name = join(path, 'intri.yml')
-        extri_name = join(path, 'extri.yml')
+        if os.path.exists(join(path, 'intri.yml')):
+            intri_name = join(path, 'intri.yml')
+            extri_name = join(path, 'extri.yml')
+        else:
+            intri_name = join(path, '../../../intri.yml')
+            extri_name = join(path, '../../../extri.yml')
+        
         if os.path.exists(intri_name) and os.path.exists(extri_name):
             self.cameras = read_camera(intri_name, extri_name)
             self.cameras.pop('basenames')

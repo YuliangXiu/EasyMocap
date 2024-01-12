@@ -99,6 +99,7 @@ eps = 0.01
 
 
 def simple_recon_person(keypoints_use, Puse):
+    # TODO: scores of keypoints changed into ZERO
     out = batch_triangulate(keypoints_use, Puse)
     # compute reprojection error
     kpts_repro = projectN3(out, Puse)

@@ -9,10 +9,12 @@ class Config:
     ROBUST_3D = False
     verbose = False
     model = 'smpl'
+    body = 'bodyhandface'
     device = None
 
     def __init__(self, args=None) -> None:
         if args is not None:
             self.verbose = args.verbose
             self.model = args.model
+            self.body = args.body
             self.ROBUST_3D_ = args.robust3d

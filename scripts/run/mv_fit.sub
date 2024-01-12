@@ -1,0 +1,14 @@
+executable = ./scripts/run/mv_fit.sh
+arguments = $(dir) $(gender)
+
+error = ./logs/$(subject)_fit.err
+output = ./logs/$(subject)_fit.out
+log = ./logs/$(subject)_fit.log
+
+request_memory = 100000
+request_disk = 5G
+request_cpus = 8
+request_gpus = 1
+requirements = (TARGET.CUDACapability > 7.5 && UtsnameNodename =!= "g095" && UtsnameNodename =!= "g093" && TARGET.CUDADeviceName!="NVIDIA H100" && TARGET.CUDAGlobalMemoryMb > 35000)
+
+queue dir,gender,subject from ./scripts/run/jobs_tmp.txt

@@ -13,7 +13,7 @@ from .camera_utils import (
     write_extri,
     write_intri,
 )
-from .cmd_loader import load_parser, parse_parser
+from .cmd_loader import load_parser, parse_parser, parse_parser_ioi
 from .file_utils import getFileList, read_annot, read_json, save_json
 from .reconstruction import batch_triangulate, projectN3, simple_recon_person
 from .utils import Timer

@@ -6,20 +6,12 @@
   @ FilePath: /EasyMocap/scripts/preprocess/extract_skeletons.py
 '''
 
+import multiprocessing as mp
 import os
-from glob import glob
-from os.path import join
-
-import shutil
-import cv2
-import numpy as np
-from tqdm import tqdm
-
-
 # multi-thread
 from functools import partial
-from multiprocessing import Pool, Queue
-import multiprocessing as mp
+from multiprocessing import Pool
+from os.path import join
 
 mkdir = lambda x: os.makedirs(x, exist_ok=True)
 

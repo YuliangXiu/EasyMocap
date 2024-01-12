@@ -15,6 +15,17 @@ from .weight import load_weight_pose, load_weight_shape
 def multi_stage_optimize(
     body_model, params, kp3ds, kp2ds=None, bboxes=None, Pall=None, weight={}, cfg=None
 ):
+    if cfg.body == 'body15':
+        cfg.OPT_HAND = False
+        cfg.OPT_EXPR = False
+    else:
+        if cfg.model == 'smplh':
+            cfg.OPT_HAND = True
+            cfg.OPT_EXPR = False
+        elif cfg.model == 'smplx':
+            cfg.OPT_HAND = True
+            cfg.OPT_EXPR = True
+
     with Timer('Optimize global RT'):
         cfg.OPT_R = True
         cfg.OPT_T = True
@@ -24,19 +35,11 @@ def multi_stage_optimize(
         cfg.OPT_POSE = True
         cfg.ROBUST_3D = False
         params = optimizePose3D(body_model, params, kp3ds, weight=weight, cfg=cfg)
-        if False:
-            cfg.ROBUST_3D = True
-            params = optimizePose3D(body_model, params, kp3ds, weight=weight, cfg=cfg)
-        if cfg.model in ['smplh', 'smplx']:
-            cfg.OPT_HAND = True
-            params = optimizePose3D(body_model, params, kp3ds, weight=weight, cfg=cfg)
-        if cfg.model == 'smplx':
-            cfg.OPT_EXPR = True
-            params = optimizePose3D(body_model, params, kp3ds, weight=weight, cfg=cfg)
     if kp2ds is not None:
         with Timer('Optimize 2D Pose/{} frames'.format(kp3ds.shape[0])):
             # bboxes => (nFrames, nViews, 5), keypoints2d => (nFrames, nViews, nJoints, 3)
             params = optimizePose2D(body_model, params, bboxes, kp2ds, Pall, weight=weight, cfg=cfg)
+    
     return params
 
 
@@ -45,6 +48,18 @@ def multi_stage_optimize2d(body_model, params, kp2ds, bboxes, Pall, weight={}, a
     cfg.device = body_model.device
     cfg.device = body_model.device
     cfg.model = body_model.model_type
+    
+    if cfg.body == 'body15':
+        cfg.OPT_HAND = False
+        cfg.OPT_EXPR = False
+    else:
+        if cfg.model == 'smplh':
+            cfg.OPT_HAND = True
+            cfg.OPT_EXPR = False
+        elif cfg.model == 'smplx':
+            cfg.OPT_HAND = True
+            cfg.OPT_EXPR = True
+            
     with Timer('Optimize global RT'):
         cfg.OPT_R = True
         cfg.OPT_T = True

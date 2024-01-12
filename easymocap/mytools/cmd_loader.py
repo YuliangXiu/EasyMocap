@@ -135,3 +135,31 @@ def parse_parser(parser):
     args.opts = {args.opts[2 * i]: float(args.opts[2 * i + 1]) for i in range(len(args.opts) // 2)}
     save_parser(args)
     return args
+
+
+def parse_parser_ioi(parser):
+    args = parser.parse_args()
+    if args.out is None:
+        print(' - [Warning] Please specify the output path `--out ${out}`')
+        print(' - [Warning] Default to {}/output'.format(args.path))
+        args.out = join(args.path, 'output')
+    if args.from_file is not None:
+        assert os.path.exists(args.from_file), args.from_file
+        with open(args.from_file) as f:
+            datas = f.readlines()
+            subs = [d for d in datas if not d.startswith('#')]
+            subs = [d.rstrip().replace('https://www.youtube.com/watch?v=', '') for d in subs]
+        newsubs = sorted(os.listdir(join(args.path, 'images')))
+        clips = []
+        for newsub in newsubs:
+            if newsub.split('+')[0] in subs:
+                clips.append(newsub)
+        for sub in subs:
+            if os.path.exists(join(args.path, 'images', sub)):
+                clips.append(sub)
+        args.sub = clips
+    if len(args.sub) == 0 and os.path.exists(join(args.path, 'images')):
+        args.sub = sorted([item.split(".")[0] for item in os.listdir(join(args.path, 'images'))])
+    args.opts = {args.opts[2 * i]: float(args.opts[2 * i + 1]) for i in range(len(args.opts) // 2)}
+    save_parser(args)
+    return args

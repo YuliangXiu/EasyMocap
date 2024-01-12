@@ -6,22 +6,19 @@
   @ FilePath: /EasyMocap/scripts/preprocess/copy_ioi_from_cluster.py
 '''
 
-import os
 import fnmatch
+import multiprocessing as mp
+import os
 import shutil
-from glob import glob
-from os.path import join
-from torchvision.utils import make_grid
-from torchvision.io import read_image
-
 # multi-thread
 from functools import partial
-from multiprocessing import Pool, Queue
-import multiprocessing as mp
+from glob import glob
+from multiprocessing import Pool
+from os.path import join
 
 import cv2
-from tqdm import tqdm
-from termcolor import colored
+from torchvision.io import read_image
+from torchvision.utils import make_grid
 
 from easymocap.mytools.debug_utils import myerror, mywarn
 

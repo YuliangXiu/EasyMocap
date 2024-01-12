@@ -136,14 +136,17 @@ def get_interp_by_keypoints(keypoints):
     def interp_func(params):
         for start, end in ranges:
             # 对每个需要插值的区间: 这里直接使用最近帧进行插值了
-            left = start - 1
-            right = end + 1
-            for nf in range(start, end + 1):
-                weight = (nf - left) / (right - left)
-                for key in ['Rh', 'Th', 'poses']:
-                    params[key][nf] = interp(
-                        params[key][left], params[key][right], 1 - weight, key=key
-                    )
+            if start == 0 and end == 0:
+               pass
+            else:
+                left = start - 1
+                right = end + 1
+                for nf in range(start, end + 1):
+                    weight = (nf - left) / (right - left)
+                    for key in ['Rh', 'Th', 'poses']:
+                        params[key][nf] = interp(
+                            params[key][left], params[key][right], 1 - weight, key=key
+                        )
         return params
 
     return interp_func

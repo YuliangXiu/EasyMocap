@@ -10,3 +10,4 @@ from .config import CONFIG
 from .mv1pmf import MV1PMF
 from .mv1pmf_mirror import MV1PMF_Mirror
 from .mvmpmf import MVMPMF
+from .mv1pmf_ioi import MV1PMF_IOI
