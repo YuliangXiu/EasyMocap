@@ -1,6 +1,7 @@
 export src_data="/ps/data/DynamicClothCap"
 export tgt_data="./data/PuzzleIOI"
-export job_path="./scripts/run/jobs.txt"
+# export tgt_data="/ps/scratch/ps_shared/yxiu/PuzzleIOI"
+export job_path="./scripts/run/jobs_tmp.txt"
 
 # # 0. collect data from the clusters (for EasyMocap)
 # python scripts/preprocess/copy_ioi_from_cluster.py \
@@ -23,4 +24,4 @@ export job_path="./scripts/run/jobs.txt"
 python scripts/preprocess/copy_ioi_for_puzzleavatar.py \
     --src_path ${src_data} \
     --tgt_path ${tgt_data} \
-##    --overwrite
+    --overwrite
