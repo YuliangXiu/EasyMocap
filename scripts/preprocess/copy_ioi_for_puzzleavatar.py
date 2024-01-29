@@ -100,10 +100,12 @@ def read_camera_cali(file, ref_img_file, camera_id):
     )
     return camera_cali
 
+
 scene = pyrender.Scene()
 light = pyrender.SpotLight(
     color=np.ones(3), intensity=50.0, innerConeAngle=np.pi / 16.0, outerConeAngle=np.pi / 6.0
 )
+
 
 def render(scan_file, ref_img_file, camera_cali):
 
@@ -120,7 +122,7 @@ def render(scan_file, ref_img_file, camera_cali):
 
     # Add mesh:
     scan_mesh = trimesh.load(scan_file, process=False)
-    scan_mesh = trimesh.intersections.slice_mesh_plane(scan_mesh, [0, 1, 0], [0, -585.0, 0])
+    scan_mesh = trimesh.intersections.slice_mesh_plane(scan_mesh, [0, 1, 0], [0, -580.0, 0])
     scan_mesh.vertices /= 1000.0
 
     mesh = pyrender.Mesh.from_trimesh(scan_mesh)
@@ -131,7 +133,7 @@ def render(scan_file, ref_img_file, camera_cali):
     color, _ = r.render(scene)
     mask = (color == color[0, 0]).sum(axis=2, keepdims=True) != 3
     masked_img = ref_img * mask
-    
+
     scene.clear()
 
     return masked_img
@@ -158,11 +160,12 @@ def read_json(path):
 
 
 def check_img_valid(path):
-    src_meshs = glob(join(path, "../../meshes", "*000001.obj"))
-    full_cam = len(glob(join(path, "*_C.jpg"))) >= camera_num
+    fname = path.split("/")[-2]
+    has_mesh = len(glob(join(path, "../../meshes", f"*{fname}.obj"))) >= 1
+    enough_cam = len(glob(join(path, "*_C.jpg"))) >= camera_num
     front_cam = len(glob(join(path, "*07_C.jpg"))) >= 1
 
-    if len(src_meshs) == 1 and full_cam and front_cam:
+    if has_mesh and enough_cam and front_cam:
         return True
     else:
         return False
@@ -174,55 +177,52 @@ def copy_all(subject_dir, outfit_name, tgt_dir, overwrite):
         glob(join(subject_dir, f"*{outfit_name}_seq*/images/00*/")), reverse=True
     )
     outfit_seq_valid = [path for path in outfit_seq_dirs if check_img_valid(path)]
-    # outfit_seq_invalid = [path for path in outfit_seq_dirs if not check_img_valid(path)]
-
-    # if len(outfit_seq_invalid) >0:
-    #     print(colored(f"Ignored lists: {outfit_seq_invalid}", "yellow"))
 
     if len(outfit_seq_valid) > motion_num:
 
         outfit_seq_random = random.sample(outfit_seq_valid, motion_num)
         outfit_seq_front = random.sample([
             item for item in outfit_seq_valid if item not in outfit_seq_random
-        ], min(len(outfit_seq_valid) - motion_num, 2*motion_num))
+        ], min(len(outfit_seq_valid) - motion_num, 2 * motion_num))
+
+        # copy front view
+        for outfit_id, outfit_seq in enumerate(outfit_seq_front):
+
+            front_path = glob(join(outfit_seq, "*07_C.jpg"))[0]
+            out_path = join(tgt_dir, f"{outfit_id+1+(motion_num*camera_num):03d}.jpg")
+
+            if (not os.path.exists(out_path)) or (overwrite):
+                outfit_seq_name = ".".join(os.path.basename(front_path).split(".")[:2])
+                scan_file = f"{os.path.dirname(front_path)}/../../meshes/{outfit_seq_name}.obj"
+                if os.path.exists(scan_file):
+                    masked_img = render(scan_file, front_path, cameras["07_C"])
+                    plt.imsave(out_path, np.asarray(masked_img), dpi=1)
+                else:
+                    print(colored(f"Cannot find {scan_file}", "red"))
+                    continue
 
         # copy random views
         for outfit_id, outfit_seq in enumerate(outfit_seq_random):
 
             puzzle_captures = random.sample(glob(join(outfit_seq, "*_C.jpg")), camera_num)
-            
-            # copy front view
-            for outfit_id, outfit_seq in enumerate(outfit_seq_front):
-                front_path = glob(join(outfit_seq, "*07_C.jpg"))[0]
-                out_path = join(
-                    tgt_dir, f"{outfit_id+1+(motion_num*camera_num):03d}.jpg"
-                )
-                if (not os.path.exists(out_path)) or (overwrite):
-                    outfit_seq_name = ".".join(os.path.basename(front_path).split(".")[:2])
-                    scan_file = f"{os.path.dirname(front_path)}/../../meshes/{outfit_seq_name}.obj"
-                    masked_img = render(scan_file, front_path, cameras["07_C"])
-                    plt.imsave(out_path, np.asarray(masked_img), dpi=1)
 
             for cam_id, puzzle_capture in enumerate(puzzle_captures):
                 out_path = join(tgt_dir, f"{outfit_id*camera_num+cam_id+1:03d}.jpg")
-                masked_img = None
+
                 if (not os.path.exists(out_path)) or (overwrite):
                     outfit_seq_name = ".".join(os.path.basename(puzzle_capture).split(".")[:2])
                     cam_name = os.path.basename(puzzle_capture).split(".")[-2]
                     scan_file = f"{os.path.dirname(puzzle_capture)}/../../meshes/{outfit_seq_name}.obj"
                     if os.path.exists(scan_file):
                         masked_img = render(scan_file, puzzle_capture, cameras[cam_name])
+                        plt.imsave(out_path, np.asarray(masked_img), dpi=1)
                     else:
-                        print(colored(f"Missing {scan_file}", "red"))
-                    plt.imsave(out_path, np.asarray(masked_img), dpi=1)
-
-
+                        print(colored(f"Cannot find {scan_file}", "red"))
+                        continue
     else:
         print(colored(f"Not enough motions for {subject_dir} outfit {outfit_name}", "red"))
         if os.path.exists(f"{tgt_dir}/.."):
             shutil.rmtree(f"{tgt_dir}/..")
-
-    print(f"Finish copying {tgt_dir}")
 
 
 def copy_dataset(subject, src_path, tgt_path, overwrite):
@@ -248,8 +248,9 @@ def copy_dataset(subject, src_path, tgt_path, overwrite):
             mkdir(tgt_outfit_dir)
             # remove the old files
             for file in glob(join(tgt_outfit_dir, "*.jpg")):
-                if len(file.split("/")[-1].split(".")[-2])==2:
-                    os.remove(file)
+                # basename = file.split("/")[-1].split(".")[-2]
+                # if len(basename) == 2 or int(basename) > 120:
+                os.remove(file)
             copy_all(subject_dir, outfit_name, tgt_outfit_dir, overwrite)
 
     print(colored(f"Finish copying {subject}", "green"))

@@ -24,4 +24,4 @@ export job_path="./scripts/run/jobs_tmp.txt"
 python scripts/preprocess/copy_ioi_for_puzzleavatar.py \
     --src_path ${src_data} \
     --tgt_path ${tgt_data} \
-    --overwrite
+    # --overwrite

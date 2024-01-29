@@ -4,7 +4,7 @@ from os.path import join
 import cv2
 import numpy as np
 
-from .file_utils import mkout, write_keypoints3d, write_smpl
+from .file_utils import mkout, write_keypoints3d, write_smpl, write_vertices
 # from mytools import save_json, merge
 # from ..mytools import merge, plot_bbox, plot_keypoints
 # from mytools.file_utils import read_json, save_json, read_annot, read_smpl, write_smpl, get_bbox_from_pose
@@ -119,6 +119,9 @@ class FileWriter:
 
     def write_smpl(self, results, outname):
         write_smpl(outname, results)
+        
+    def write_vertices(self, results, outname):
+        write_vertices(outname, results)
 
     def vis_keypoints3d(self, infos, nf, images, cameras, mode='repro'):
         out = join(self.out, mode)

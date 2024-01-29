@@ -70,6 +70,7 @@ class MV1PMF(MVBase):
             cameras[key] = np.stack([self.cameras[cam][key] for cam in sub_vis])
         images = [images[self.cams.index(cam)] for cam in sub_vis]
         self.writer.vis_smpl(render_data, images, cameras, outname, add_back=add_back)
+        
 
     def vis_detections(self, images, annots, nf, to_img=True, sub_vis=[]):
         lDetections = []

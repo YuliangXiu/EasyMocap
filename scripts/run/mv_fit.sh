@@ -12,6 +12,7 @@ python apps/demo/mv1p_ioi.py ${tgt_data}/fitting/$1 \
     --annot skeletons \
     --vis_det \
     --vis_repro \
+    --vis_smpl \
     --undis \
     --gender $2 \
     --start 0 \
@@ -19,4 +20,5 @@ python apps/demo/mv1p_ioi.py ${tgt_data}/fitting/$1 \
     --sub_vis 03_C 07_C 11_C 15_C 19_C 22_C \
     --body body15 \
     --model smplx \
-    --vis_smpl
+    --write_smpl_full \
+    --write_vertices
