@@ -12,6 +12,7 @@ import os
 import random
 import shutil
 from tqdm import tqdm
+from shutil import copyfile
 
 # multi-thread
 from functools import partial
@@ -20,7 +21,6 @@ from multiprocessing import Pool
 from os.path import join
 from termcolor import colored
 
-import cv2
 import matplotlib.pyplot as plt
 import pyrender
 import trimesh
@@ -31,11 +31,7 @@ mkdir = lambda x: os.makedirs(x, exist_ok=True)
 
 import json
 
-cameras = {}
-
-person_id = "00145"
-
-cam_cali_file = f"data/PuzzleIOI/fitting/{person_id}/outfit5/camera.csd"
+cameras = np.load("./scripts/preprocess/camera.npy", allow_pickle=True).item()
 
 motion_num = 10
 camera_num = 10
@@ -50,8 +46,6 @@ def read_camera_cali(file, ref_img_file, camera_id):
 
     # read reference image:
     ref_img = plt.imread(ref_img_file)
-
-    RENDER_RESOLUTION = [ref_img.shape[1], ref_img.shape[0]]
 
     line_id = None
     for i in range(len(lines)):
@@ -86,17 +80,17 @@ def read_camera_cali(file, ref_img_file, camera_id):
     camera_cali['c_x'] = float(camera_info[9]) + 0.5
     camera_cali['c_y'] = float(camera_info[10]) + 0.5
 
-    camera_cali['c_x'] *= RENDER_RESOLUTION[0]
-    camera_cali['c_y'] *= RENDER_RESOLUTION[1]
-    camera_cali['fx'] *= RENDER_RESOLUTION[0]
-    camera_cali['fy'] *= RENDER_RESOLUTION[0]
+    camera_cali['c_x'] *= ref_img.shape[1]
+    camera_cali['c_y'] *= ref_img.shape[0]
+    camera_cali['fx'] *= ref_img.shape[1]
+    camera_cali['fy'] *= ref_img.shape[1]
 
     camera = pyrender.camera.IntrinsicsCamera(
         camera_cali['fx'], camera_cali['fy'], camera_cali['c_x'], camera_cali['c_y']
     )
 
     camera_cali['intrinsic'] = camera.get_projection_matrix(
-        width=RENDER_RESOLUTION[0], height=RENDER_RESOLUTION[1]
+        width=ref_img.shape[1], height=ref_img.shape[0]
     )
     return camera_cali
 
@@ -112,7 +106,6 @@ def render(scan_file, ref_img_file, camera_cali):
     # read reference image:
     ref_img = plt.imread(ref_img_file)
 
-    RENDER_RESOLUTION = [ref_img.shape[1], ref_img.shape[0]]
     camera = pyrender.camera.IntrinsicsCamera(
         camera_cali['fx'], camera_cali['fy'], camera_cali['c_x'], camera_cali['c_y']
     )
@@ -129,7 +122,7 @@ def render(scan_file, ref_img_file, camera_cali):
     scene.add(mesh)
 
     # Render
-    r = pyrender.OffscreenRenderer(RENDER_RESOLUTION[0], RENDER_RESOLUTION[1])
+    r = pyrender.OffscreenRenderer(ref_img.shape[1], ref_img.shape[0])
     color, _ = r.render(scene)
     mask = (color == color[0, 0]).sum(axis=2, keepdims=True) != 3
     masked_img = ref_img * mask
@@ -137,13 +130,6 @@ def render(scan_file, ref_img_file, camera_cali):
     scene.clear()
 
     return masked_img
-
-
-for i in range(1, 23, 1):
-
-    camera_id = f"{i:02d}_C"
-    ref_img_file = f"data/PuzzleIOI/fitting/{person_id}/outfit5/images/{camera_id}.jpg"
-    cameras[camera_id] = read_camera_cali(cam_cali_file, ref_img_file, camera_id)
 
 
 def save_json(file, data):
@@ -171,7 +157,10 @@ def check_img_valid(path):
         return False
 
 
-def copy_all(subject_dir, outfit_name, tgt_dir, overwrite):
+def copy_all(outfit_name, subject_dir, tgt_dir):
+
+    tgt_dir = join(tgt_dir, outfit_name, "image")
+    mkdir(tgt_dir)
 
     outfit_seq_dirs = sorted(
         glob(join(subject_dir, f"*{outfit_name}_seq*/images/00*/")), reverse=True
@@ -189,14 +178,16 @@ def copy_all(subject_dir, outfit_name, tgt_dir, overwrite):
         for outfit_id, outfit_seq in enumerate(outfit_seq_front):
 
             front_path = glob(join(outfit_seq, "*07_C.jpg"))[0]
-            out_path = join(tgt_dir, f"{outfit_id+1+(motion_num*camera_num):03d}.jpg")
+            out_path = join(tgt_dir, f"{outfit_id+1+(motion_num*camera_num):03d}_07_C.jpg")
+            raw_path = join(tgt_dir, f"{outfit_id+1+(motion_num*camera_num):03d}_07_C_raw.jpg")
 
-            if (not os.path.exists(out_path)) or (overwrite):
+            if (not os.path.exists(out_path)):
                 outfit_seq_name = ".".join(os.path.basename(front_path).split(".")[:2])
                 scan_file = f"{os.path.dirname(front_path)}/../../meshes/{outfit_seq_name}.obj"
                 if os.path.exists(scan_file):
                     masked_img = render(scan_file, front_path, cameras["07_C"])
                     plt.imsave(out_path, np.asarray(masked_img), dpi=1)
+                    copyfile(front_path, raw_path)
                 else:
                     print(colored(f"Cannot find {scan_file}", "red"))
                     continue
@@ -207,25 +198,35 @@ def copy_all(subject_dir, outfit_name, tgt_dir, overwrite):
             puzzle_captures = random.sample(glob(join(outfit_seq, "*_C.jpg")), camera_num)
 
             for cam_id, puzzle_capture in enumerate(puzzle_captures):
-                out_path = join(tgt_dir, f"{outfit_id*camera_num+cam_id+1:03d}.jpg")
 
-                if (not os.path.exists(out_path)) or (overwrite):
+                cam_name = os.path.basename(puzzle_capture).split(".")[-2]
+                out_path = join(tgt_dir, f"{outfit_id*camera_num+cam_id+1:03d}_{cam_name}.jpg")
+                same_ids_out_paths = glob(f"{tgt_dir}/{outfit_id*camera_num+cam_id+1:03d}_*.jpg")
+
+                if len(same_ids_out_paths) < 1:
+
                     outfit_seq_name = ".".join(os.path.basename(puzzle_capture).split(".")[:2])
                     cam_name = os.path.basename(puzzle_capture).split(".")[-2]
                     scan_file = f"{os.path.dirname(puzzle_capture)}/../../meshes/{outfit_seq_name}.obj"
+
                     if os.path.exists(scan_file):
                         masked_img = render(scan_file, puzzle_capture, cameras[cam_name])
                         plt.imsave(out_path, np.asarray(masked_img), dpi=1)
                     else:
                         print(colored(f"Cannot find {scan_file}", "red"))
                         continue
+                    
+        print(colored(f"Finish copying {subject_dir} outfit {outfit_name}", "green"))
     else:
         print(colored(f"Not enough motions for {subject_dir} outfit {outfit_name}", "red"))
-        if os.path.exists(f"{tgt_dir}/.."):
-            shutil.rmtree(f"{tgt_dir}/..")
+
+        if os.path.exists(os.path.dirname(tgt_dir)):
+            shutil.rmtree(os.path.dirname(tgt_dir))
+            
+    
 
 
-def copy_dataset(subject, src_path, tgt_path, overwrite):
+def copy_dataset(subject, src_path, tgt_path):
 
     person_id = subject.split("_")[-2]
     subject_dir = join(src_path, subject)
@@ -241,17 +242,19 @@ def copy_dataset(subject, src_path, tgt_path, overwrite):
             )
         )
 
-        outfit_names_tqdm = tqdm(outfit_names)
-        for outfit_name in outfit_names_tqdm:
-            outfit_names_tqdm.set_description(f"Copying {person_id} : {outfit_name}")
-            tgt_outfit_dir = join(tgt_path, "puzzle", f"{person_id}/{outfit_name}/image")
-            mkdir(tgt_outfit_dir)
-            # remove the old files
-            for file in glob(join(tgt_outfit_dir, "*.jpg")):
-                # basename = file.split("/")[-1].split(".")[-2]
-                # if len(basename) == 2 or int(basename) > 120:
-                os.remove(file)
-            copy_all(subject_dir, outfit_name, tgt_outfit_dir, overwrite)
+        print("CPU:", mp.cpu_count())
+        print("propress", len(outfit_names))
+
+        with Pool(processes=len(outfit_names), maxtasksperchild=1) as pool:
+            pool.map(
+                partial(
+                    copy_all,
+                    subject_dir=subject_dir,
+                    tgt_dir=join(tgt_path, "puzzle_cam", person_id),
+                ), outfit_names
+            )
+            pool.close()
+            pool.join()
 
     print(colored(f"Finish copying {subject}", "green"))
 
@@ -260,25 +263,15 @@ if __name__ == "__main__":
 
     import argparse
     parser = argparse.ArgumentParser()
+    parser.add_argument('--subject', type=str)
     parser.add_argument('--src_path', type=str)
     parser.add_argument('--tgt_path', type=str)
-    parser.add_argument('--overwrite', action='store_true')
     args = parser.parse_args()
 
-    mkdir(join(args.tgt_path, "puzzle"))
-    subjects = sorted(os.listdir(args.src_path))
+    mkdir(join(args.tgt_path, "puzzle_cam"))
 
-    # subjects = ["DynamicClothCap_220426_03612_CG"]
-
-    print("CPU:", mp.cpu_count())
-    with Pool(processes=mp.cpu_count(), maxtasksperchild=1) as pool:
-        pool.map(
-            partial(
-                copy_dataset,
-                src_path=args.src_path,
-                tgt_path=args.tgt_path,
-                overwrite=args.overwrite
-            ), subjects
-        )
-        pool.close()
-        pool.join()
+    copy_dataset(
+        subject=args.subject,
+        src_path=args.src_path,
+        tgt_path=args.tgt_path,
+    )
